@@ -1,0 +1,44 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <Authors>Leevi Uotinen</Authors>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Description>Utilities for editing text.</Description>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <AssemblyName>Code.DotNet.App</AssemblyName>
+    <RootNamespace>Code.DotNet.App</RootNamespace>
+    <VersionMajor>0</VersionMajor>
+    <VersionMinor>1</VersionMinor>
+    <VersionBuild>$([System.DateTime]::UtcNow.ToString(yyMM))</VersionBuild>
+    <VersionRevision>$([System.DateTime]::UtcNow.ToString(HHmm))</VersionRevision>
+    <Version>$(VersionMajor).$(VersionMinor).$(VersionBuild).$(VersionRevision)</Version>
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <Company></Company>
+    <Authors>Leevi Uotinen</Authors>
+    <Copyright>Copyright © Leevi Uotinen 2020</Copyright>
+    <Product>Code.DotNet.App $(VersionMajor).$(VersionMinor)</Product>
+    <PackageId>Code.DotNet.App</PackageId>
+  </PropertyGroup>
+
+  <Target Name="CopyPackage" AfterTargets="Pack">
+    <Copy SourceFiles="$(OutputPath)\..\$(PackageId).$(PackageVersion).nupkg" DestinationFolder="$(MSBuildProjectDirectory)\..\Nuget\" />
+  </Target>
+
+  <ItemGroup>
+    <PackageReference Include="System.Memory" Version="4.5.4" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+    <DebugType>full</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+</Project>
