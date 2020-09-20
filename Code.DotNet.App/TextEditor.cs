@@ -5,6 +5,12 @@ namespace Code.DotNet.App
 {
     public class TextEditor : TextEditor<TextEditor>
     {
+        public enum SearchScope
+        {
+            EntireText,
+            AfterCaret,
+            BeforeCaret
+        }
     }
 
     public abstract class TextEditor<TTextEditor>
@@ -123,17 +129,31 @@ namespace Code.DotNet.App
             };
         }
 
-        public virtual TTextEditor Select(Regex pattern)
-        {
-            Match = pattern.Match(Text);
+        public virtual TTextEditor Select(Regex pattern, TextEditor.SearchScope scope = TextEditor.SearchScope.EntireText)
+        {            
+            switch (scope)
+            {
+                case TextEditor.SearchScope.EntireText:
+                    Match = pattern.Match(Text);
+                    break;
+
+                case TextEditor.SearchScope.AfterCaret:
+                    Match = pattern.Match(Text, (int)CaretIndex);
+                    break;
+
+                case TextEditor.SearchScope.BeforeCaret:
+                    Match = pattern.Match(Text, 0, (int)CaretIndex);
+                    break;
+            }
+
             SelectionStart = Match.Index;
             SelectionLength = Match.Length;
             return (TTextEditor)this;
         }
 
-        public virtual TTextEditor Select(string pattern)
+        public virtual TTextEditor Select(string pattern, TextEditor.SearchScope scope = TextEditor.SearchScope.EntireText)
         {
-            return Select(new Regex(pattern));
+            return Select(new Regex(pattern), scope);
         }
 
         public virtual TTextEditor ResetSelection()
@@ -167,16 +187,16 @@ namespace Code.DotNet.App
             return (TTextEditor)this;
         }
 
-        public virtual TTextEditor MoveToPattern(Regex pattern)
+        public virtual TTextEditor MoveToPattern(Regex pattern, TextEditor.SearchScope scope = TextEditor.SearchScope.EntireText)
         {
-            Select(pattern);
+            Select(pattern, scope);
             CaretIndex = SelectionStart;
             return (TTextEditor)this;
         }
 
-        public virtual TTextEditor MoveToPattern(string pattern)
+        public virtual TTextEditor MoveToPattern(string pattern, TextEditor.SearchScope scope = TextEditor.SearchScope.EntireText)
         {
-            return MoveToPattern(new Regex(pattern));
+            return MoveToPattern(new Regex(pattern), scope);
         }
 
         public virtual TTextEditor MoveToNextEmptyLine()
@@ -218,6 +238,16 @@ namespace Code.DotNet.App
         public virtual TTextEditor WriteLine(string value = "")
         {
             return Write(value + "\r\n");
+        }
+
+        public virtual TTextEditor WriteIndentedLines(string indentationString, params string[] lines)
+        {
+            foreach (string line in lines)
+            {
+                WriteLine(line == string.Empty ? line : $"{indentationString}{line}");
+            }
+
+            return (TTextEditor)this;
         }
 
         public virtual TTextEditor WriteLines(params string[] lines)

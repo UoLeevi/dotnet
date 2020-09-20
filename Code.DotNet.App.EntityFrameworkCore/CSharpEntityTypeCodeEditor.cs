@@ -1,4 +1,5 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Linq;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 
@@ -6,13 +7,35 @@ namespace Code.DotNet.App.EntityFrameworkCore
 {
     public class CSharpEntityTypeCodeEditor : TextEditor<CSharpEntityTypeCodeEditor>
     {
+        private string indentationString = null;
+
+        private void InferIndentation()
+        {
+            if (indentationString != null) return;
+            Regex pattern = new Regex($"\r\n([\t ]*)(?:\\w+ +)*class\\W");
+            indentationString = pattern.Match(Text).Groups[1].Value;
+        }
+
+        private string Indentation(int level = 1)
+        {
+            InferIndentation();
+            return string.Concat(Enumerable.Repeat(indentationString, level));
+        }
+
         public CSharpEntityTypeCodeEditor()
         {
         }
 
-        public virtual CSharpEntityTypeCodeEditor MoveToEndOfClassDefinition()
+        public virtual CSharpEntityTypeCodeEditor MoveToEndOfClassDefinition(string className)
         {
-            MoveToPattern("\r\n    }\r\n");
+            MoveToPattern($"\r\n{Indentation()}class {className}\\W");
+            MoveToPattern($"\r\n{Indentation()}}}\r\n", TextEditor.SearchScope.AfterCaret);
+            
+            if (!IsWhiteSpaceLine)
+            {
+                WriteLine();
+            }
+
             return this;
         }
 
@@ -35,12 +58,18 @@ namespace Code.DotNet.App.EntityFrameworkCore
             return Write($"{Match.Groups[1].Value} : {string.Join(", ", typeNames)}");
         }
 
+        public virtual CSharpEntityTypeCodeEditor WriteLinesToEndOfClassDefinition(string className, params string[] lines)
+        {
+            MoveToEndOfClassDefinition(className);
+            WriteIndentedLines(Indentation(2), lines);
+            return this;
+        }
+
         public virtual CSharpEntityTypeCodeEditor ReplaceAutoPropertiesAndImplementChangeNotifications(IEntityType entityType)
         {
-            MoveToEndOfClassDefinition();
-            WriteLines("",
+            WriteLinesToEndOfClassDefinition(entityType.Name,
                 "",
-                "        #region Private fields",
+                $"#region Private fields",
                 "");
 
             foreach (IProperty scalarProperty in entityType.GetProperties())
@@ -53,24 +82,23 @@ namespace Code.DotNet.App.EntityFrameworkCore
                 ImplementPropertyGetterAndSetter(navigationProperty);
             }
 
-            MoveToEndOfClassDefinition();
-            WriteLines("",
-                "        #endregion",
+            WriteLinesToEndOfClassDefinition(entityType.Name,
+                "#endregion",
                 "",
-                "        #region Property Change Notifications",
+                "#region Property Change Notifications",
                 "",
-                "        public event PropertyChangingEventHandler PropertyChanging;",
-                "        public event PropertyChangedEventHandler PropertyChanged;",
+                "public event PropertyChangingEventHandler PropertyChanging;",
+                "public event PropertyChangedEventHandler PropertyChanged;",
                 "",
-                "        private void SetProperty<T>(ref T field, T value, [CallerMemberName] string propertyName = \"\")",
-                "        {",
-                "            if (EqualityComparer<T>.Default.Equals(field, value)) return;",
-                "            PropertyChanging?.Invoke(this, new PropertyChangingEventArgs(propertyName));",
-                "            field = value;",
-                "            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));",
-                "        }",
+                "private void SetProperty<T>(ref T field, T value, [CallerMemberName] string propertyName = \"\")",
+                "{",
+                $"{Indentation()}if (EqualityComparer<T>.Default.Equals(field, value)) return;",
+                $"{Indentation()}PropertyChanging?.Invoke(this, new PropertyChangingEventArgs(propertyName));",
+                $"{Indentation()}field = value;",
+                $"{Indentation()}PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));",
+                "}",
                 "",
-                "        #endregion");
+                "#endregion");
 
             return this;
 
@@ -81,8 +109,8 @@ namespace Code.DotNet.App.EntityFrameworkCore
                 Select($"(public (?:virtual )?[^\\s]+ {property.Name} ){{ get; set; }}");
                 Write($"{Match.Groups[1].Value,-80}{{ get => _{property.Name}; set => SetProperty(ref _{property.Name}, value); }}");
 
-                MoveToEndOfClassDefinition();
-                WriteLine($"        private {typeNameString} _{property.Name};");
+                MoveToEndOfClassDefinition(entityType.Name);
+                WriteLine($"{Indentation(2)}private {typeNameString} _{property.Name};");
             }
         }
 
