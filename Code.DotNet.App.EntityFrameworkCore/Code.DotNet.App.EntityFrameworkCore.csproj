@@ -12,9 +12,9 @@
     <AssemblyName>Code.DotNet.App.EntityFrameworkCore</AssemblyName>
     <RootNamespace>Code.DotNet.App.EntityFrameworkCore</RootNamespace>
     <VersionMajor>0</VersionMajor>
-    <VersionMinor>1</VersionMinor>
-    <VersionBuild>$([System.DateTime]::UtcNow.ToString(yyMM))</VersionBuild>
-    <VersionRevision>$([System.DateTime]::UtcNow.ToString(HHmm))</VersionRevision>
+    <VersionMinor>$([System.DateTime]::UtcNow.ToString('yyMM'))</VersionMinor>
+    <VersionBuild>$([System.DateTime]::UtcNow.ToString('dHH'))</VersionBuild>
+    <VersionRevision>$([System.DateTime]::UtcNow.Minute.ToString())</VersionRevision>
     <Version>$(VersionMajor).$(VersionMinor).$(VersionBuild).$(VersionRevision)</Version>
     <AssemblyVersion>$(Version)</AssemblyVersion>
     <Company></Company>
@@ -29,6 +29,10 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="3.1.8" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="3.1.8">
+      <PrivateAssets>all</PrivateAssets>
+      <!--<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>-->
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
@@ -42,6 +46,9 @@
 
   <PropertyGroup>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <ApplicationIcon />
+    <OutputType>Library</OutputType>
+    <StartupObject />
   </PropertyGroup>
 
 </Project>

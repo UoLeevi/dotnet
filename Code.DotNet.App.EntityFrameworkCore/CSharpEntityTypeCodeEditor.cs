@@ -86,7 +86,7 @@ namespace Code.DotNet.App.EntityFrameworkCore
             }
         }
 
-        public virtual CSharpEntityTypeCodeEditor ImplementChangeNotifications(IEntityType entityType)
+        public virtual CSharpEntityTypeCodeEditor ImplementNotificationEntities(IEntityType entityType)
         {
             AddUsingNamespaces(
                 "System.ComponentModel",

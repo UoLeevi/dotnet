@@ -36,6 +36,25 @@ namespace EFCoreTest.Library.Models
     }
 }
 ";
+        const string cSharpDbContextFileCodeSample =
+@"using System;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
+using EFCoreTest.Library.Models;
+
+namespace EFCoreTest.Library.Context
+{
+    public partial class AdventureWorks2017Context : DbContext
+    {
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            OnModelCreatingPartial(modelBuilder);
+        }
+
+        partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
+    }
+}
+";
         #endregion
 
         [Theory]
@@ -134,6 +153,39 @@ namespace EFCoreTest.Library.Models
                 editor
                     .WriteLine($"using {@namespace};");
             }
+
+            Assert.Equal(expectedText, editor.Text);
+        }
+
+        [Theory]
+        #region Expected result
+        [InlineData(
+@"using System;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
+using EFCoreTest.Library.Models;
+
+namespace EFCoreTest.Library.Context
+{
+    public partial class AdventureWorks2017Context : DbContext
+    {
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.HasChangeTrackingStrategy(ChangeTrackingStrategy.ChangingAndChangedNotifications);
+
+            OnModelCreatingPartial(modelBuilder);
+        }
+
+        partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
+    }
+}
+")]
+        #endregion
+        public void CanInsertMethodCallIntoCSharpDbContextFileCode(string expectedText)
+        {
+            var editor = new TextEditor { Text = cSharpDbContextFileCodeSample }
+                .MoveToPattern(@"OnModelCreatingPartial\(modelBuilder\);")
+                .Write("modelBuilder.HasChangeTrackingStrategy(ChangeTrackingStrategy.ChangingAndChangedNotifications);\r\n\r\n            ");
 
             Assert.Equal(expectedText, editor.Text);
         }

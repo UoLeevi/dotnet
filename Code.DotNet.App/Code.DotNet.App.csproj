@@ -12,9 +12,9 @@
     <AssemblyName>Code.DotNet.App</AssemblyName>
     <RootNamespace>Code.DotNet.App</RootNamespace>
     <VersionMajor>0</VersionMajor>
-    <VersionMinor>1</VersionMinor>
-    <VersionBuild>$([System.DateTime]::UtcNow.ToString(yyMM))</VersionBuild>
-    <VersionRevision>$([System.DateTime]::UtcNow.ToString(HHmm))</VersionRevision>
+    <VersionMinor>$([System.DateTime]::UtcNow.ToString('yyMM'))</VersionMinor>
+    <VersionBuild>$([System.DateTime]::UtcNow.ToString('dHH'))</VersionBuild>
+    <VersionRevision>$([System.DateTime]::UtcNow.Minute.ToString())</VersionRevision>
     <Version>$(VersionMajor).$(VersionMinor).$(VersionBuild).$(VersionRevision)</Version>
     <AssemblyVersion>$(Version)</AssemblyVersion>
     <Company></Company>
