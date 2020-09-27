@@ -2,11 +2,19 @@
 
 **Miscellaneous tools for .NET application development.**
 
+---
+
+## DotNetApp.Collections
+
+Implements a `ListSynchronizer` class with which you can automatically update a target list by synchronizing it with one or more source collections that implement `INotifyCollectionChanged` interface.
+
+---
+
 ## DotNetApp.EntityFrameworkCore
 
 Extend Entity Framework DbContext scaffolding to make DbContext use [`ChangeTrackingStrategy.ChangingAndChangedNotifications`](https://docs.microsoft.com/en-us/dotnet/api/microsoft.entityframeworkcore.modelbuilder.haschangetrackingstrategy?view=efcore-3.1) and to make each entity class implement `INotifyPropertyChanging` and `INotifyPropertyChanged` interfaces.
 
-## Getting started
+### Getting started
 
 1. Add new **Console App** project (here called `MyScaffoldingStartupProject`) which will be used as a startup project for Entity Framework Core DbContext scaffolding
 2. Add reference to the target project (here called `MyTargetProject`) to which Entity Framework Core context and models would be generated
@@ -44,7 +52,7 @@ Extend Entity Framework DbContext scaffolding to make DbContext use [`ChangeTrac
     }
     ```
 
-5. Run [`Scaffold-DbContext`](https://docs.microsoft.com/en-us/ef/core/miscellaneous/cli/powershell#scaffold-dbcontext)  using NuGet Package Manager Console (change arguments to match your configuration):
+5. Run [`Scaffold-DbContext`](https://docs.microsoft.com/en-us/ef/core/miscellaneous/cli/powershell#scaffold-dbcontext) using NuGet Package Manager Console (change arguments to match your configuration):
 
     ```PowerShell
     Scaffold-DbContext "Server=(localdb)\mssqllocaldb;Database=Blogging;Trusted_Connection=True;" Microsoft.EntityFrameworkCore.SqlServer -Project MyTargetProject -StartupProject MyScaffoldingStartupProject -OutputDir Models -ContextDir Context -Verbose -UseDatabaseNames

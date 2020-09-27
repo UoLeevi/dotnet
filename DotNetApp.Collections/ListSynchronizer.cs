@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -77,8 +76,7 @@ namespace DotNetApp.Collections
             SourceLists = new List<TSourceItem>[sources.Length];
             SourceListIndexes = new Dictionary<INotifyCollectionChanged, int>();
             ItemMap = new Dictionary<TSourceItem, (int, TTargetItem)>();
-            GenericListTargets = new List<IList<TTargetItem>>();
-            NonGenericListTargets = new List<IList>();
+            ListTargets = new List<IList<TTargetItem>>();
             EventTargets = new List<INotifyCollectionChanged>();
             Target = new List<TTargetItem>();
             Transformation = transformation;
@@ -117,16 +115,6 @@ namespace DotNetApp.Collections
             }
         }
 
-        public void AddListTarget(List<TTargetItem> target)
-        {
-            foreach (var item in Target)
-            {
-                target.Add(item);
-            }
-
-            GenericListTargets.Add(target);
-        }
-
         public void AddListTarget(IList<TTargetItem> target)
         {
             foreach (var item in Target)
@@ -134,17 +122,7 @@ namespace DotNetApp.Collections
                 target.Add(item);
             }
 
-            GenericListTargets.Add(target);
-        }
-
-        public void AddListTarget(IList target)
-        {
-            foreach (var item in Target)
-            {
-                target.Add(item);
-            }
-
-            NonGenericListTargets.Add(target);
+            ListTargets.Add(target);
         }
 
         public void AddEventTarget(INotifyCollectionChanged target)
@@ -154,12 +132,7 @@ namespace DotNetApp.Collections
 
         public void RemoveListTarget(IList<TTargetItem> target)
         {
-            GenericListTargets.Remove(target);
-        }
-
-        public void RemoveListTarget(IList target)
-        {
-            NonGenericListTargets.Remove(target);
+            ListTargets.Remove(target);
         }
 
         public void RemoveEventTarget(INotifyCollectionChanged target)
@@ -169,8 +142,7 @@ namespace DotNetApp.Collections
 
         private List<TTargetItem> Target { get; }
 
-        private List<IList<TTargetItem>> GenericListTargets { get; }
-        private List<IList> NonGenericListTargets { get; }
+        private List<IList<TTargetItem>> ListTargets { get; }
         private List<INotifyCollectionChanged> EventTargets { get; }
 
         private Dictionary<TSourceItem, (int ReferenceCount, TTargetItem Item)> ItemMap { get; }
@@ -269,14 +241,9 @@ namespace DotNetApp.Collections
 
             Target.Insert(index, item);
 
-            foreach (var target in GenericListTargets)
+            foreach (var target in ListTargets)
             {
                 target.Insert(index, item);
-            }
-
-            foreach (var target in NonGenericListTargets)
-            {
-                 target.Insert(index, item);
             }
 
             foreach (var eventTarget in EventTargets)
@@ -291,12 +258,7 @@ namespace DotNetApp.Collections
             int index = Target.IndexOf(item);
             Target.RemoveAt(index);
 
-            foreach (var target in GenericListTargets)
-            {
-                target.RemoveAt(index);
-            }
-
-            foreach (var target in NonGenericListTargets)
+            foreach (var target in ListTargets)
             {
                 target.RemoveAt(index);
             }
@@ -312,19 +274,12 @@ namespace DotNetApp.Collections
         {
             Target.InsertRange(index, newItems);
 
-            foreach (var target in GenericListTargets)
+            foreach (var target in ListTargets)
             {
                 for (int i = 0; i < newItems.Count; ++i)
                 {
-                    target.Insert(index + i, newItems[i]);
-                }
-            }
-
-            foreach (var target in NonGenericListTargets)
-            {
-                for (int i = 0; i < newItems.Count; ++i)
-                {
-                    target.Insert(index + i, newItems[i]);
+                    TTargetItem item = newItems[i];
+                    target.Insert(index + i, item);
                 }
             }
 
@@ -341,20 +296,7 @@ namespace DotNetApp.Collections
             Target.RemoveRange(oldIndex, count);
             Target.InsertRange(newIndex, items);
 
-            foreach (var target in GenericListTargets)
-            {
-                for (int i = 0; i < count; ++i)
-                {
-                    target.RemoveAt(oldIndex);
-                }
-
-                for (int i = 0; i < count; ++i)
-                {
-                    target.Insert(newIndex + i, items[i]);
-                }
-            }
-
-            foreach (var target in NonGenericListTargets)
+            foreach (var target in ListTargets)
             {
                 for (int i = 0; i < count; ++i)
                 {
@@ -378,15 +320,7 @@ namespace DotNetApp.Collections
             int count = oldItems.Count;
             Target.RemoveRange(index, count);
 
-            foreach (var target in GenericListTargets)
-            {
-                for (int i = 0; i < count; ++i)
-                {
-                    target.RemoveAt(index);
-                }
-            }
-
-            foreach (var target in NonGenericListTargets)
+            foreach (var target in ListTargets)
             {
                 for (int i = 0; i < count; ++i)
                 {
@@ -405,20 +339,7 @@ namespace DotNetApp.Collections
             Target.RemoveRange(index, newItems.Count);
             Target.InsertRange(index, newItems);
 
-            foreach (var target in GenericListTargets)
-            {
-                for (int i = 0; i < newItems.Count; ++i)
-                {
-                    target.RemoveAt(index);
-                }
-
-                for (int i = 0; i < newItems.Count; ++i)
-                {
-                    target.Insert(index + i, newItems[i]);
-                }
-            }
-
-            foreach (var target in NonGenericListTargets)
+            foreach (var target in ListTargets)
             {
                 for (int i = 0; i < newItems.Count; ++i)
                 {
@@ -441,12 +362,7 @@ namespace DotNetApp.Collections
         {
             Target.Clear();
 
-            foreach (var target in GenericListTargets)
-            {
-                target.Clear();
-            }
-
-            foreach (var target in NonGenericListTargets)
+            foreach (var target in ListTargets)
             {
                 target.Clear();
             }
