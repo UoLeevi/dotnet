@@ -8,23 +8,19 @@ namespace DotNetApp.Collections
 {
     /// <summary>
     /// An intermediary that forwards changes made to observable source collections to a target list or lists.
-    /// Synchronization can:
-    /// - combine multiple source collections
-    /// - filter source collection items
-    /// - transform source collection items
-    /// - sort target list items
-    /// - raise INotifyCollectionChanged.CollectionChanged events
+    /// Binding can be configured to combine multiple source collections, filter, transform and sort list items
+    /// and raise INotifyCollectionChanged.CollectionChanged events.
     /// </summary>
     /// <typeparam name="T">Type of list items</typeparam>
-    public class ListSynchronizer<T> : ListSynchronizer<T, T>
+    public class ListBinding<T> : ListBinding<T, T>
     {
-        public ListSynchronizer(
+        public ListBinding(
             params IEnumerable<T>[] sources) : this(sources.Select(s => ((INotifyCollectionChanged)s, s)).ToArray())
         {
 
         }
 
-        public ListSynchronizer(
+        public ListBinding(
             params (INotifyCollectionChanged EventSource, IEnumerable<T> Items)[] sources) : base(x => x, sources)
         {
 
@@ -33,32 +29,28 @@ namespace DotNetApp.Collections
 
     /// <summary>
     /// An intermediary that forwards changes made to observable source collections to a target list or lists.
-    /// Synchronization can:
-    /// - combine multiple source collections
-    /// - filter source collection items
-    /// - transform source collection items
-    /// - sort target list items
-    /// - raise INotifyCollectionChanged.CollectionChanged events
+    /// Binding can be configured to combine multiple source collections, filter, transform and sort list items
+    /// and raise INotifyCollectionChanged.CollectionChanged events.
     /// </summary>
     /// <typeparam name="TSourceItem">Source collection item type</typeparam>
     /// <typeparam name="TTargetItem">Target list item type</typeparam>
-    public class ListSynchronizer<TSourceItem, TTargetItem>
+    public class ListBinding<TSourceItem, TTargetItem>
     {
-        public ListSynchronizer(
+        public ListBinding(
             Func<TSourceItem, TTargetItem> transformation,
             params IEnumerable<TSourceItem>[] sources) : this(transformation, sources.Select(s => ((INotifyCollectionChanged)s, s)).ToArray())
         {
 
         }
 
-        public ListSynchronizer(
+        public ListBinding(
             Func<TSourceItem, TTargetItem> transformation,
             params (INotifyCollectionChanged EventSource, IEnumerable<TSourceItem> Items)[] sources) : this(transformation, null, null, sources)
         {
 
         }
 
-        public ListSynchronizer(
+        public ListBinding(
             Func<TSourceItem, TTargetItem> transformation,
             Func<TSourceItem, bool> filterPredicate,
             IComparer<TTargetItem> comparer,
@@ -67,7 +59,7 @@ namespace DotNetApp.Collections
 
         }
 
-        public ListSynchronizer(
+        public ListBinding(
             Func<TSourceItem, TTargetItem> transformation,
             Func<TSourceItem, bool> filterPredicate,
             IComparer<TTargetItem> comparer,

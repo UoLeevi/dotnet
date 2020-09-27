@@ -6,7 +6,9 @@
 
 ## DotNetApp.Collections
 
-Implements a `ListSynchronizer` class with which you can automatically update a target list by synchronizing it with one or more source collections that implement `INotifyCollectionChanged` interface.
+Implements a `ListBinding` class with which you can automatically update a target list by binding it with one or more source collections that implement `INotifyCollectionChanged` interface.
+
+Implements a `ListProxy` class which provides a proxy for a list where individual `IList<T>` interface members can be overriden using delegates.
 
 ---
 

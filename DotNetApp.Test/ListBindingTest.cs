@@ -7,7 +7,7 @@ using Xunit;
 
 namespace DotNetApp.Test
 {
-    public class ListSynchronizerTest
+    public class ListBindingTest
     {
         [Fact]
         public void DoesTrackChangesOnSingleSource()
@@ -17,7 +17,7 @@ namespace DotNetApp.Test
             List<int> projection1 = new List<int>();
             List<int> projection2 = new List<int>();
 
-            ListSynchronizer<int, int> synchronizer = new ListSynchronizer<int>(source);
+            ListBinding<int, int> binding = new ListBinding<int>(source);
 
             source.Add(0);
             source.Add(1);
@@ -25,12 +25,12 @@ namespace DotNetApp.Test
             source.Add(3);
             source.Add(4);
 
-            synchronizer.AddListTarget(projection1);
+            binding.AddListTarget(projection1);
 
             source.Add(5);
             source.Add(6);
 
-            synchronizer.AddListTarget(projection2);
+            binding.AddListTarget(projection2);
 
             source.Add(7);
             source.Add(8);
@@ -76,7 +76,7 @@ namespace DotNetApp.Test
             List<int> projection1 = new List<int>();
             List<int> projection2 = new List<int>();
 
-            ListSynchronizer<int, int> synchronizer = new ListSynchronizer<int>(source1, source2, source3);
+            ListBinding<int, int> binding = new ListBinding<int>(source1, source2, source3);
 
             source1.Add(0);
             source2.Add(1);
@@ -84,12 +84,12 @@ namespace DotNetApp.Test
             source3.Add(3);
             source2.Add(4);
 
-            synchronizer.AddListTarget(projection1);
+            binding.AddListTarget(projection1);
 
             source1.Add(5);
             source2.Add(6);
 
-            synchronizer.AddListTarget(projection2);
+            binding.AddListTarget(projection2);
 
             source1.Add(7);
             source3.Add(8);
@@ -143,7 +143,7 @@ namespace DotNetApp.Test
 
             Func<int, string> transformation = i => i.ToString();
 
-            ListSynchronizer<int, string> synchronizer = new ListSynchronizer<int, string>(transformation, source1, source2, source3);
+            ListBinding<int, string> binding = new ListBinding<int, string>(transformation, source1, source2, source3);
 
             source1.Add(0);
             source2.Add(1);
@@ -151,12 +151,12 @@ namespace DotNetApp.Test
             source3.Add(3);
             source2.Add(4);
 
-            synchronizer.AddListTarget(projection1);
+            binding.AddListTarget(projection1);
 
             source1.Add(5);
             source2.Add(6);
 
-            synchronizer.AddListTarget(projection2);
+            binding.AddListTarget(projection2);
 
             source1.Add(7);
             source3.Add(8);
@@ -213,7 +213,7 @@ namespace DotNetApp.Test
             Func<int, string> transformation = i => i.ToString();
             Func<int, bool> filterPredicate = i => i <= 2;
 
-            ListSynchronizer<int, string> synchronizer = new ListSynchronizer<int, string>(transformation, filterPredicate, null, source1, source2, source3);
+            ListBinding<int, string> binding = new ListBinding<int, string>(transformation, filterPredicate, null, source1, source2, source3);
 
             source1.Add(0);
             source2.Add(1);
@@ -221,12 +221,12 @@ namespace DotNetApp.Test
             source3.Add(3);
             source2.Add(4);
 
-            synchronizer.AddListTarget(projection1);
+            binding.AddListTarget(projection1);
 
             source1.Add(5);
             source2.Add(6);
 
-            synchronizer.AddListTarget(projection2);
+            binding.AddListTarget(projection2);
 
             source1.Add(7);
             source3.Add(8);
