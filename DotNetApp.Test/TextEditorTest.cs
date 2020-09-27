@@ -1,6 +1,6 @@
 using Xunit;
 
-namespace Code.DotNet.App.Test
+namespace DotNetApp.Test
 {
     public class TextEditorTest
     {
@@ -104,7 +104,7 @@ namespace EFCoreTest.Library.Models
 @"using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Code.DotNet.App.Test;
+using DotNetApp.Test;
 
 namespace EFCoreTest.Library.Models
 {
@@ -139,7 +139,7 @@ namespace EFCoreTest.Library.Models
             string[] namespaces = new []
             {
                 "Microsoft.EntityFrameworkCore.ChangeTracking",
-                "Code.DotNet.App.Test"
+                "DotNetApp.Test"
             };
 
             var editor = new TextEditor { Text = cSharpClassFileCodeSample };

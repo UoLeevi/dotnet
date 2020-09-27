@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore.Scaffolding.Internal;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Code.DotNet.App.EntityFrameworkCore
+namespace DotNetApp.EntityFrameworkCore
 {
     public static class ServiceCollectionExtensions
     {

@@ -1,8 +1,8 @@
-# Code.DotNet.App
+# DotNetApp
 
 **Miscellaneous tools for .NET application development.**
 
-## Code.DotNet.App.EntityFrameworkCore
+## DotNetApp.EntityFrameworkCore
 
 Extend Entity Framework DbContext scaffolding to make DbContext use [`ChangeTrackingStrategy.ChangingAndChangedNotifications`](https://docs.microsoft.com/en-us/dotnet/api/microsoft.entityframeworkcore.modelbuilder.haschangetrackingstrategy?view=efcore-3.1) and to make each entity class implement `INotifyPropertyChanging` and `INotifyPropertyChanged` interfaces.
 
@@ -13,7 +13,7 @@ Extend Entity Framework DbContext scaffolding to make DbContext use [`ChangeTrac
 3. Install NuGet packages using NuGet Package Manager Console:
 
     ```PowerShell
-    Install-Package Code.DotNet.App.EntityFrameworkCore -ProjectName MyScaffoldingStartupProject
+    Install-Package DotNetApp.EntityFrameworkCore -ProjectName MyScaffoldingStartupProject
     Install-Package Microsoft.EntityFrameworkCore.Tools -ProjectName MyScaffoldingStartupProject
     Install-Package Microsoft.EntityFrameworkCore.SqlServer -ProjectName MyScaffoldingStartupProject
     ```
@@ -23,7 +23,7 @@ Extend Entity Framework DbContext scaffolding to make DbContext use [`ChangeTrac
     ```C#
     using Microsoft.EntityFrameworkCore.Design;
     using Microsoft.Extensions.DependencyInjection;
-    using Code.DotNet.App.EntityFrameworkCore;
+    using DotNetApp.EntityFrameworkCore;
 
     namespace MyScaffoldingStartupProject
     {

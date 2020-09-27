@@ -1,16 +1,16 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <Authors>Leevi Uotinen</Authors>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <Description>Design-time utilities for customizing scaffolding when using database first approach with Entity Framework Core.</Description>
+    <Description>Utilities for working with collections.</Description>
   </PropertyGroup>
 
   <PropertyGroup>
-    <AssemblyName>Code.DotNet.App.EntityFrameworkCore</AssemblyName>
-    <RootNamespace>Code.DotNet.App.EntityFrameworkCore</RootNamespace>
+    <AssemblyName>DotNetApp.Collections</AssemblyName>
+    <RootNamespace>DotNetApp.Collections</RootNamespace>
     <VersionMajor>0</VersionMajor>
     <VersionMinor>$([System.DateTime]::UtcNow.ToString('yyMM'))</VersionMinor>
     <VersionBuild>$([System.DateTime]::UtcNow.ToString('dHH'))</VersionBuild>
@@ -20,7 +20,7 @@
     <Company></Company>
     <Authors>Leevi Uotinen</Authors>
     <Copyright>Copyright © Leevi Uotinen 2020</Copyright>
-    <Product>Code.DotNet.App $(VersionMajor).$(VersionMinor)</Product>
+    <Product>DotNetApp $(VersionMajor).$(VersionMinor)</Product>
   </PropertyGroup>
 
   <Target Name="CopyPackage" AfterTargets="Pack">
@@ -28,15 +28,7 @@
   </Target>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="3.1.8" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="3.1.8">
-      <PrivateAssets>all</PrivateAssets>
-      <!--<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>-->
-    </PackageReference>
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Code.DotNet.App\Code.DotNet.App.csproj" />
+    <ProjectReference Include="..\DotNetApp\DotNetApp.csproj" />
   </ItemGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">

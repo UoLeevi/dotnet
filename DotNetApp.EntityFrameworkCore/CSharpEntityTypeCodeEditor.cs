@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 
-namespace Code.DotNet.App.EntityFrameworkCore
+namespace DotNetApp.EntityFrameworkCore
 {
     public class CSharpEntityTypeCodeEditor : TextEditor<CSharpEntityTypeCodeEditor>
     {

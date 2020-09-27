@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Scaffolding;
 using Microsoft.EntityFrameworkCore.Scaffolding.Internal;
 
-namespace Code.DotNet.App.EntityFrameworkCore
+namespace DotNetApp.EntityFrameworkCore
 {
     public class CSharpNotificationStrategyDbContextGenerator : CSharpDbContextGenerator
     {
