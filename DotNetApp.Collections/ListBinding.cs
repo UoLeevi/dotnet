@@ -1,7 +1,7 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Specialized;
-using System.ComponentModel;
 using System.Linq;
 
 namespace DotNetApp.Collections
@@ -11,103 +11,149 @@ namespace DotNetApp.Collections
     /// Binding can be configured to combine multiple source collections, filter, transform and sort list items
     /// and raise INotifyCollectionChanged.CollectionChanged events.
     /// </summary>
-    /// <typeparam name="T">Type of list items</typeparam>
-    public class ListBinding<T> : ListBinding<T, T>
+    /// <typeparam name="T">Type in which list binding stores items</typeparam>
+    public class ListBinding<T> : INotifyCollectionChanged
     {
-        public ListBinding(
-            params IEnumerable<T>[] sources) : this(sources.Select(s => ((INotifyCollectionChanged)s, s)).ToArray())
+        private class SourceItem
         {
-
+            internal int ReferenceCount = 1;
+            internal T Item;
         }
 
-        public ListBinding(
-            params (INotifyCollectionChanged EventSource, IEnumerable<T> Items)[] sources) : base(x => x, sources)
+        private class Source
         {
 
-        }
-    }
+            public Source()
+            {
+                Map = new Dictionary<object, SourceItem>();
+                List = new List<T>();
+            }
 
-    /// <summary>
-    /// An intermediary that forwards changes made to observable source collections to a target list or lists.
-    /// Binding can be configured to combine multiple source collections, filter, transform and sort list items
-    /// and raise INotifyCollectionChanged.CollectionChanged events.
-    /// </summary>
-    /// <typeparam name="TSourceItem">Source collection item type</typeparam>
-    /// <typeparam name="TTargetItem">Target list item type</typeparam>
-    public class ListBinding<TSourceItem, TTargetItem>
-    {
-        public ListBinding(
-            Func<TSourceItem, TTargetItem> transformation,
-            params IEnumerable<TSourceItem>[] sources) : this(transformation, sources.Select(s => ((INotifyCollectionChanged)s, s)).ToArray())
-        {
-
+            internal Source Previous;
+            internal Dictionary<object, SourceItem> Map;
+            internal List<T> List;
+            internal INotifyCollectionChanged EventSource;
+            internal Func<object, T> Convert;
+            internal Func<object, bool> Filter;
         }
 
-        public ListBinding(
-            Func<TSourceItem, TTargetItem> transformation,
-            params (INotifyCollectionChanged EventSource, IEnumerable<TSourceItem> Items)[] sources) : this(transformation, null, null, sources)
+        private List<T> Target { get; }
+        private List<IList<T>> ListTargets;
+        private List<INotifyCollectionChanged> EventTargets;
+
+        private Source Head { get; set; }
+        private Dictionary<object, Source> Sources { get; }
+        private List<Func<T, bool>> Filters { get; set; }
+        private IComparer<T> Comparer { get; set; }
+
+        public ListBinding()
         {
-
-        }
-
-        public ListBinding(
-            Func<TSourceItem, TTargetItem> transformation,
-            Func<TSourceItem, bool> filterPredicate,
-            IComparer<TTargetItem> comparer,
-            params IEnumerable<TSourceItem>[] sources) : this(transformation, filterPredicate, comparer, sources.Select(s => ((INotifyCollectionChanged)s, s)).ToArray())
-        {
-
-        }
-
-        public ListBinding(
-            Func<TSourceItem, TTargetItem> transformation,
-            Func<TSourceItem, bool> filterPredicate,
-            IComparer<TTargetItem> comparer,
-            params (INotifyCollectionChanged EventSource, IEnumerable<TSourceItem> Items)[] sources)
-        {
-            SourceLists = new List<TSourceItem>[sources.Length];
-            SourceListIndexes = new Dictionary<INotifyCollectionChanged, int>();
-            ItemMap = new Dictionary<TSourceItem, (int, TTargetItem)>();
-            ListTargets = new List<IList<TTargetItem>>();
+            Target = new List<T>();
+            ListTargets = new List<IList<T>>();
             EventTargets = new List<INotifyCollectionChanged>();
-            Target = new List<TTargetItem>();
-            Transformation = transformation;
-            FilterPredicate = filterPredicate;
-            Comparer = comparer;
-
-            if (Transformation == null)
-            {
-                var converter = TypeDescriptor.GetConverter(typeof(TTargetItem));
-                if (!converter.CanConvertFrom(typeof(TSourceItem)))
-                {
-                    throw new ArgumentException($"Argument {nameof(transformation)} is null and {typeof(TSourceItem).Name} cannot be converted to type {typeof(TTargetItem).Name}.", nameof(transformation));
-                }
-
-                Transformation = x => (TTargetItem)converter.ConvertFrom(x);
-            }
-
-            if (FilterPredicate != null && Comparer == null)
-            {
-                Comparer = Comparer<TTargetItem>.Default;
-            }
-
-            for (int i = 0; i < sources.Length; ++i)
-            {
-                var source = sources[i];
-                var items = new List<TSourceItem>(source.Items);
-                SourceLists[i] = items;
-                Target.AddRange(MapNewSourceItems(items));
-                SourceListIndexes.Add(source.EventSource, i);
-                source.EventSource.CollectionChanged += Synchronize;
-            }
-
-            if (Comparer != null)
-            {
-                Target.Sort(Comparer);
-            }
+            Sources = new Dictionary<object, Source>();
+            Filters = new List<Func<T, bool>>();
         }
 
-        public void AddListTarget(IList<TTargetItem> target)
+        public event NotifyCollectionChangedEventHandler CollectionChanged;
+
+        public ListBinding<T> AddSource<TSourceItem>(IEnumerable<TSourceItem> collection, INotifyCollectionChanged eventSource, Func<TSourceItem, T> convert, Func<TSourceItem, bool> filter)
+        {
+            if (collection is ISet<T>)
+            {
+                Comparer = Comparer<T>.Default;
+            }
+
+            Source source = new Source
+            {
+                Previous = Head,
+                EventSource = eventSource
+            };
+
+            Head = source;
+
+            if (convert != null)
+            {
+                source.Convert = item => convert((TSourceItem)item);
+            }
+
+            if (filter != null)
+            {
+                source.Filter = item => filter((TSourceItem)item);
+            }
+            
+            Sources.Add(eventSource, source);
+
+            Synchronize(eventSource, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, collection.ToList(), Target.Count));
+
+            eventSource.CollectionChanged += Synchronize;
+
+            return this;
+        }
+
+        public ListBinding<T> AddSource<TSourceItem>(IEnumerable<TSourceItem> collection, INotifyCollectionChanged eventSource, Func<TSourceItem, T> convert)
+            => AddSource(collection, eventSource, convert, null);
+
+        public ListBinding<T> AddSource<TSourceItem>(IEnumerable<TSourceItem> collection, Func<TSourceItem, T> convert, Func<TSourceItem, bool> filter)
+            => AddSource(collection, (INotifyCollectionChanged)collection, convert, filter);
+
+        public ListBinding<T> AddSource<TSourceItem>(IEnumerable<TSourceItem> collection, Func<TSourceItem, T> convert)
+            => AddSource(collection, (INotifyCollectionChanged)collection, convert);
+
+        public ListBinding<T> AddSource(IEnumerable<T> collection)
+            => AddSource(collection, null);
+
+        public ListBinding<T> RemoveSource(INotifyCollectionChanged eventSource)
+        {
+            if (Sources.TryGetValue(eventSource, out Source source))
+            {
+                Sources.Remove(eventSource);
+                eventSource.CollectionChanged -= Synchronize;
+                Synchronize(eventSource, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+
+                var nextSource = Sources.Values.FirstOrDefault(s => s.Previous == source);
+                nextSource.Previous = source.Previous;
+
+                if (Head == source)
+                {
+                    Head = source.Previous;
+                }
+            }
+
+            return this;
+        }
+
+        public ListBinding<T> Where(Func<T, bool> predicate)
+        {
+            Filters.Add(predicate);
+            return this;
+        }
+
+        public ListBinding<T> OrderBy<TKey>(Func<T, TKey> keySelector, IComparer<TKey> comparer)
+        {
+            Comparer = Comparer<T>.Create((x, y) => comparer.Compare(keySelector(x), keySelector(y)));
+            return this;
+        }
+
+        public ListBinding<T> OrderBy<TKey>(Func<T, TKey> keySelector)
+            => OrderBy(keySelector, Comparer<TKey>.Default);
+
+        public ListBinding<T> OrderByDescending<TKey>(Func<T, TKey> keySelector, IComparer<TKey> comparer)
+        {
+            Comparer = Comparer<T>.Create((x, y) => comparer.Compare(keySelector(y), keySelector(x)));
+            return this;
+        }
+
+        public ListBinding<T> OrderByDescending<TKey>(Func<T, TKey> keySelector)
+            => OrderByDescending(keySelector, Comparer<TKey>.Default);
+
+        public ListBinding<R> Select<R>(Func<T, R> selector)
+        {
+            return new ListBinding<R>()
+                .AddSource(Target, this, selector);
+        }
+
+        public ListBinding<T> AddListTarget(IList<T> target)
         {
             foreach (var item in Target)
             {
@@ -115,110 +161,88 @@ namespace DotNetApp.Collections
             }
 
             ListTargets.Add(target);
+            return this;
         }
 
-        public void AddEventTarget(INotifyCollectionChanged target)
+        public ListBinding<T> AddEventTarget(INotifyCollectionChanged target)
         {
             EventTargets.Add(target);
+            return this;
         }
 
-        public void RemoveListTarget(IList<TTargetItem> target)
+        public ListBinding<T> RemoveListTarget(IList<T> target)
         {
             ListTargets.Remove(target);
+            return this;
         }
 
-        public void RemoveEventTarget(INotifyCollectionChanged target)
+        public ListBinding<T> RemoveEventTarget(INotifyCollectionChanged target)
         {
             EventTargets.Remove(target);
+            return this;
         }
 
-        private List<TTargetItem> Target { get; }
-
-        private List<IList<TTargetItem>> ListTargets { get; }
-        private List<INotifyCollectionChanged> EventTargets { get; }
-
-        private Dictionary<TSourceItem, (int ReferenceCount, TTargetItem Item)> ItemMap { get; }
-        private Dictionary<INotifyCollectionChanged, int> SourceListIndexes { get; }
-        private List<TSourceItem>[] SourceLists { get; }
-
-        private Func<TSourceItem, TTargetItem> Transformation { get; }
-        private IComparer<TTargetItem> Comparer { get; }
-        private Func<TSourceItem, bool> FilterPredicate { get; }
-
-        private IEnumerable<TTargetItem> MapNewSourceItems(IEnumerable<TSourceItem> sourceItems)
+        private IEnumerable<T> MapNewItems(Source source, IEnumerable items)
         {
-            if (sourceItems == null) yield break;
+            if (items == null) yield break;
 
-            if (FilterPredicate != null)
+            foreach (object item in items)
             {
-                sourceItems = sourceItems.Where(FilterPredicate);
-            }
 
-            foreach (TSourceItem sourceItem in sourceItems)
-            {
-                TTargetItem targetItem;
-
-                if (ItemMap.TryGetValue(sourceItem, out var value))
+                if (source.Map.TryGetValue(item, out SourceItem sourceItem))
                 {
-                    targetItem = value.Item;
-                    ++value.ReferenceCount;
-                    ItemMap[sourceItem] = value;
+                    ++sourceItem.ReferenceCount;
+                    yield return sourceItem.Item;
                 }
                 else
                 {
-                    targetItem = Transformation(sourceItem);
-                    ItemMap.Add(sourceItem, (1, targetItem));
-                }
+                    if (source.Filter?.Invoke(item) == false) continue;
 
-                yield return targetItem;
+                    T targetItem = source.Convert == null ? (T)item : source.Convert(item);
+
+                    if (Filters.Any(filter => !filter(targetItem))) continue;
+
+                    sourceItem = new SourceItem { Item = targetItem };
+                    source.Map.Add(item, sourceItem);
+                    yield return targetItem;
+                }
             }
         }
 
-        private IEnumerable<TTargetItem> MapOldSourceItems(IEnumerable<TSourceItem> sourceItems)
+        private IEnumerable<T> MapOldItems(Source source, IEnumerable items)
         {
-            if (sourceItems == null) yield break;
+            if (items == null) yield break;
 
-            foreach (TSourceItem sourceItem in sourceItems)
+            foreach (object item in items)
             {
-                TTargetItem targetItem;
-
-                if (ItemMap.TryGetValue(sourceItem, out var value))
+                if (source.Map.TryGetValue(item, out var sourceItem))
                 {
-                    targetItem = value.Item;
-                    --value.ReferenceCount;
+                    --sourceItem.ReferenceCount;
 
-                    if (value.ReferenceCount == 0)
+                    if (sourceItem.ReferenceCount == 0)
                     {
-                        ItemMap.Remove(sourceItem);
+                        source.Map.Remove(item);
                     }
-                    else
-                    {
-                        ItemMap[sourceItem] = value;
-                    }
-                }
-                else
-                {
-                    continue;
-                }
 
-                yield return targetItem;
+                    yield return sourceItem.Item;
+                }
             }
         }
 
-        private IEnumerable<TTargetItem> MapSourceItems(IEnumerable<TSourceItem> sourceItems)
+        private IEnumerable<T> MapItems(Source source, IEnumerable items)
         {
-            if (sourceItems == null) yield break;
+            if (items == null) yield break;
 
-            foreach (TSourceItem sourceItem in sourceItems)
+            foreach (object item in items)
             {
-                if (ItemMap.TryGetValue(sourceItem, out var value))
+                if (source.Map.TryGetValue(item, out var sourceItem))
                 {
-                    yield return value.Item;
+                    yield return sourceItem.Item;
                 }
             }
         }
 
-        private void InsertSorted(TTargetItem item)
+        private void InsertSorted(T item)
         {
             int index = -1;
 
@@ -238,14 +262,18 @@ namespace DotNetApp.Collections
                 target.Insert(index, item);
             }
 
+            var newItems = new List<T> { item };
+            var eventArgs = new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, newItems, index);
+
             foreach (var eventTarget in EventTargets)
             {
-                var newItems = new List<TTargetItem> { item };
-                eventTarget.OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, newItems, index));
+                eventTarget.OnCollectionChanged(eventArgs);
             }
+
+            CollectionChanged?.Invoke(this, eventArgs);
         }
 
-        private void Remove(TTargetItem item)
+        private void Remove(T item)
         {
             int index = Target.IndexOf(item);
             Target.RemoveAt(index);
@@ -255,14 +283,18 @@ namespace DotNetApp.Collections
                 target.RemoveAt(index);
             }
 
+            var oldItems = new List<T> { item };
+            var eventArgs = new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, oldItems, index);
+
             foreach (var eventTarget in EventTargets)
             {
-                var oldItems = new List<TTargetItem> { item };
-                eventTarget.OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, oldItems, index));
+                eventTarget.OnCollectionChanged(eventArgs);
             }
+
+            CollectionChanged?.Invoke(this, eventArgs);
         }
 
-        private void InsertRange(int index, List<TTargetItem> newItems)
+        private void InsertRange(int index, List<T> newItems)
         {
             Target.InsertRange(index, newItems);
 
@@ -270,18 +302,22 @@ namespace DotNetApp.Collections
             {
                 for (int i = 0; i < newItems.Count; ++i)
                 {
-                    TTargetItem item = newItems[i];
+                    T item = newItems[i];
                     target.Insert(index + i, item);
                 }
             }
 
+            var eventArgs = new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, newItems, index);
+
             foreach (var eventTarget in EventTargets)
             {
-                eventTarget.OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, newItems, index));
+                eventTarget.OnCollectionChanged(eventArgs);
             }
+
+            CollectionChanged?.Invoke(this, eventArgs);
         }
 
-        private void MoveRange(int oldIndex, int newIndex, List<TTargetItem> items)
+        private void MoveRange(int oldIndex, int newIndex, List<T> items)
         {
             int count = items.Count;
 
@@ -301,13 +337,17 @@ namespace DotNetApp.Collections
                 }
             }
 
+            var eventArgs = new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Move, items, oldIndex, newIndex);
+
             foreach (var eventTarget in EventTargets)
             {
-                eventTarget.OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Move, items, oldIndex, newIndex));
+                eventTarget.OnCollectionChanged(eventArgs);
             }
+
+            CollectionChanged?.Invoke(this, eventArgs);
         }
 
-        private void RemoveRange(int index, List<TTargetItem> oldItems)
+        private void RemoveRange(int index, List<T> oldItems)
         {
             int count = oldItems.Count;
             Target.RemoveRange(index, count);
@@ -320,13 +360,17 @@ namespace DotNetApp.Collections
                 }
             }
 
+            var eventArgs = new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, oldItems, index);
+
             foreach (var eventTarget in EventTargets)
             {
-                eventTarget.OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, oldItems, index));
+                eventTarget.OnCollectionChanged(eventArgs);
             }
+
+            CollectionChanged?.Invoke(this, eventArgs);
         }
 
-        private void ReplaceRange(int index, List<TTargetItem> newItems, List<TTargetItem> oldItems)
+        private void ReplaceRange(int index, List<T> newItems, List<T> oldItems)
         {
             Target.RemoveRange(index, newItems.Count);
             Target.InsertRange(index, newItems);
@@ -344,10 +388,14 @@ namespace DotNetApp.Collections
                 }
             }
 
+            var eventArgs = new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Replace, newItems, oldItems, index);
+
             foreach (var eventTarget in EventTargets)
             {
-                eventTarget.OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Replace, newItems, oldItems, index));
+                eventTarget.OnCollectionChanged(eventArgs);
             }
+
+            CollectionChanged?.Invoke(this, eventArgs);
         }
 
         private void Clear()
@@ -359,74 +407,102 @@ namespace DotNetApp.Collections
                 target.Clear();
             }
 
+            var eventArgs = new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset);
+
             foreach (var eventTarget in EventTargets)
             {
-                eventTarget.OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+                eventTarget.OnCollectionChanged(eventArgs);
             }
+
+            CollectionChanged?.Invoke(this, eventArgs);
         }
 
         private void Synchronize(object sender, NotifyCollectionChangedEventArgs e)
         {
-            INotifyCollectionChanged eventSource = (INotifyCollectionChanged)sender;
-            int sourceListIndex = SourceListIndexes[eventSource];
-            List<TSourceItem> sourceList = SourceLists[sourceListIndex];
+            Source source = Sources[sender];
 
-            IEnumerable<TSourceItem> newSourceItems = e.NewItems?.Cast<TSourceItem>();
-            List<TTargetItem> newTargetItems = MapNewSourceItems(newSourceItems).ToList();
-
-            IEnumerable<TSourceItem> oldSourceItems = e.Action == NotifyCollectionChangedAction.Reset
-                ? sourceList
-                : e.OldItems?.Cast<TSourceItem>();
-
-            List<TTargetItem> oldTargetItems = e.Action == NotifyCollectionChangedAction.Move
-                ? MapSourceItems(oldSourceItems).ToList()
-                : MapOldSourceItems(oldSourceItems).ToList();
+            List<T> newTargetItems = MapNewItems(source, e.NewItems).ToList();
+            List<T> oldTargetItems = e.Action == NotifyCollectionChangedAction.Reset
+                ? source.List.ToList()
+                : e.Action == NotifyCollectionChangedAction.Move
+                    ? MapItems(source, e.OldItems).ToList()
+                    : MapOldItems(source, e.OldItems).ToList();
 
             switch (e.Action)
             {
                 case NotifyCollectionChangedAction.Add:
-                    sourceList.InsertRange(e.NewStartingIndex, newSourceItems);
+                    if (e.NewStartingIndex < 0 || Filters.Any() || source.Filter != null)
+                    {
+                        source.List.AddRange(newTargetItems);
+                        break;
+                    }
+
+                    source.List.InsertRange(e.NewStartingIndex, newTargetItems);
 
                     break;
 
                 case NotifyCollectionChangedAction.Move:
-                    List<TTargetItem> items = new List<TTargetItem>();
+                    if (Comparer != null || Filters.Any() || source.Filter != null) return;
 
-                    sourceList.RemoveRange(e.OldStartingIndex, e.NewItems.Count);
-                    sourceList.InsertRange(e.NewStartingIndex, newSourceItems);
-
-                    if (Comparer != null) return;
+                    source.List.RemoveRange(e.OldStartingIndex, e.OldItems.Count);
+                    source.List.InsertRange(e.NewStartingIndex, oldTargetItems);
 
                     break;
 
                 case NotifyCollectionChangedAction.Remove:
-                    sourceList.RemoveRange(e.OldStartingIndex, e.OldItems.Count);
+                    if (e.OldStartingIndex < 0 || Filters.Any() || source.Filter != null)
+                    {
+                        foreach (var item in oldTargetItems)
+                        {
+                            source.List.Remove(item);
+                        }
+
+                        break;
+                    }
+
+                    source.List.RemoveRange(e.OldStartingIndex, e.OldItems.Count);
 
                     break;
 
                 case NotifyCollectionChangedAction.Replace:
-                    sourceList.RemoveRange(e.OldStartingIndex, e.NewItems.Count);
-                    sourceList.InsertRange(e.NewStartingIndex, newSourceItems);
+                    if (Filters.Any() || source.Filter != null)
+                    {
+                        foreach (var item in oldTargetItems)
+                        {
+                            source.List.Remove(item);
+                        }
+
+                        if (e.NewStartingIndex < 0 || Filters.Any() || source.Filter != null)
+                        {
+                            source.List.AddRange(newTargetItems);
+                        }
+
+                        break;
+                    }
+
+                    source.List.RemoveRange(e.OldStartingIndex, e.NewItems.Count);
+                    source.List.InsertRange(e.NewStartingIndex, newTargetItems);
 
                     break;
 
                 case NotifyCollectionChangedAction.Reset:
-                    sourceList.Clear();
+                    source.List.Clear();
 
                     break;
             }
 
             int offset = 0;
 
-            for (int i = 0; i < sourceListIndex; ++i)
+            while (source.Previous != null)
             {
-                offset += SourceLists[i].Count;
+                source = source.Previous;
+                offset += source.List.Count;
             }
 
             switch (e.Action)
             {
                 case NotifyCollectionChangedAction.Add:
-                    if (Comparer == null)
+                    if (Comparer == null && e.NewStartingIndex >= 0 && !Filters.Any() && !Sources.Values.Any(s => s.Filter != null))
                     {
                         int index = offset + e.NewStartingIndex;
                         InsertRange(index, newTargetItems);
@@ -452,7 +528,7 @@ namespace DotNetApp.Collections
                     break;
 
                 case NotifyCollectionChangedAction.Remove:
-                    if (Comparer == null)
+                    if (Comparer == null && e.OldStartingIndex >= 0 && !Sources.Values.Any(s => s.Filter != null))
                     {
                         int oldIndex = offset + e.OldStartingIndex;
                         RemoveRange(oldIndex, oldTargetItems);
@@ -467,7 +543,7 @@ namespace DotNetApp.Collections
                     break;
 
                 case NotifyCollectionChangedAction.Replace:
-                    if (Comparer == null)
+                    if (Comparer == null && e.OldStartingIndex >= 0 && !Sources.Values.Any(s => s.Filter != null))
                     {
                         int index = offset + e.OldStartingIndex;
                         ReplaceRange(index, newTargetItems, oldTargetItems);
@@ -487,13 +563,13 @@ namespace DotNetApp.Collections
                     break;
 
                 case NotifyCollectionChangedAction.Reset:
-                    if (SourceLists.Length == 1)
+                    if (Sources.Count == 1)
                     {
                         Clear();
                         break;
                     }
                     
-                    if (Comparer == null)
+                    if (Comparer == null && !Sources.Values.Any(s => s.Filter != null))
                     {
                         RemoveRange(offset, oldTargetItems);
                         break;
