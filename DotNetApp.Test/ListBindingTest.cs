@@ -291,7 +291,6 @@ namespace DotNetApp.Test
             Assert.Equal(expected, projection2);
         }
 
-
         [Fact]
         public void DoesSupportForking()
         {
@@ -377,6 +376,104 @@ namespace DotNetApp.Test
 
             expected = source1.Concat(source2).Concat(source3).Where(filterPredicate).Select(transformation).ToList();
             expected.Sort();
+            Assert.Equal(expected, projection1);
+            Assert.Equal(expected, projection2);
+
+            expectedForked = source1.Concat(source2).Concat(source3).Where(filterPredicate).ToList();
+            expectedForked.Sort();
+            Assert.Equal(expectedForked, projection3);
+        }
+
+        [Fact]
+        public void DoesSupportReordering()
+        {
+            List<string> expected;
+            List<int> expectedForked;
+
+            ObservableCollection<int> source1 = new ObservableCollection<int>();
+            ObservableCollection<int> source2 = new ObservableCollection<int>();
+            ObservableCollection<int> source3 = new ObservableCollection<int>();
+
+            List<string> projection1 = new List<string>();
+            List<string> projection2 = new List<string>();
+            List<int> projection3 = new List<int>();
+
+            Func<int, string> transformation = i => i.ToString();
+            Func<int, bool> filterPredicate = i => i <= 2;
+
+            ListBinding<string> binding = new ListBinding<string>()
+                .AddSource(source1, convert: transformation, filter: filterPredicate)
+                .AddSource(source2, convert: transformation, filter: filterPredicate)
+                .AddSource(source3, convert: transformation, filter: filterPredicate);
+
+            source1.Add(0);
+            source2.Add(1);
+            source3.Add(2);
+            source3.Add(3);
+            source2.Add(4);
+
+            binding.AddListTarget(projection1);
+
+            source1.Add(5);
+            source2.Add(6);
+
+            binding.AddListTarget(projection2);
+
+            source1.Add(7);
+            source3.Add(8);
+
+            expected = source1.Concat(source2).Concat(source3).Where(filterPredicate).Select(transformation).ToList();
+            expected.Sort();
+            Assert.Equal(expected, projection1);
+            Assert.Equal(expected, projection2);
+
+            var bindingForked = binding.Select<int>(item => int.Parse(item));
+
+            source2.Remove(4);
+            source1.Remove(5);
+            source2.Remove(6);
+
+            expected = source1.Concat(source2).Concat(source3).Where(filterPredicate).Select(transformation).ToList();
+            expected.Sort();
+            Assert.Equal(expected, projection1);
+            Assert.Equal(expected, projection2);
+
+            source1.Insert(1, 4);
+            source3.Insert(0, 5);
+            source1.Insert(1, 6);
+
+            expected = source1.Concat(source2).Concat(source3).Where(filterPredicate).Select(transformation).ToList();
+            expected.Sort();
+            Assert.Equal(expected, projection1);
+            Assert.Equal(expected, projection2);
+
+            binding.OrderByDescending(x => x);
+
+            source1[1] = 0;
+            source1[2] = 0;
+            source1[0] = 5;
+            source3[1] = 4;
+
+            expected = source1.Concat(source2).Concat(source3).Where(filterPredicate).Select(transformation).ToList();
+            expected.Sort();
+            expected.Reverse();
+            Assert.Equal(expected, projection1);
+            Assert.Equal(expected, projection2);
+
+            source1.Clear();
+
+            expected = source1.Concat(source2).Concat(source3).Where(filterPredicate).Select(transformation).ToList();
+            expected.Sort();
+            expected.Reverse();
+            Assert.Equal(expected, projection1);
+            Assert.Equal(expected, projection2);
+
+            source3.Clear();
+            source2.Clear();
+
+            expected = source1.Concat(source2).Concat(source3).Where(filterPredicate).Select(transformation).ToList();
+            expected.Sort();
+            expected.Reverse();
             Assert.Equal(expected, projection1);
             Assert.Equal(expected, projection2);
 

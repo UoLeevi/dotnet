@@ -22,8 +22,7 @@ namespace DotNetApp.Collections
 
         private class Source
         {
-
-            public Source()
+            internal Source()
             {
                 Map = new Dictionary<object, SourceItem>();
                 List = new List<T>();
@@ -32,7 +31,6 @@ namespace DotNetApp.Collections
             internal Source Previous;
             internal Dictionary<object, SourceItem> Map;
             internal List<T> List;
-            internal INotifyCollectionChanged EventSource;
             internal Func<object, T> Convert;
             internal Func<object, bool> Filter;
         }
@@ -40,9 +38,8 @@ namespace DotNetApp.Collections
         private List<T> Target { get; }
         private List<IList<T>> ListTargets;
         private List<INotifyCollectionChanged> EventTargets;
-
-        private Source Head { get; set; }
         private Dictionary<object, Source> Sources { get; }
+        private Source Head { get; set; }
         private List<Func<T, bool>> Filters { get; set; }
         private IComparer<T> Comparer { get; set; }
 
@@ -59,15 +56,14 @@ namespace DotNetApp.Collections
 
         public ListBinding<T> AddSource<TSourceItem>(IEnumerable<TSourceItem> collection, INotifyCollectionChanged eventSource, Func<TSourceItem, T> convert, Func<TSourceItem, bool> filter)
         {
-            if (collection is ISet<T>)
+            if (collection is ISet<T> && Comparer == null)
             {
-                Comparer = Comparer<T>.Default;
+                Sort(Comparer<T>.Default);
             }
 
             Source source = new Source
             {
-                Previous = Head,
-                EventSource = eventSource
+                Previous = Head
             };
 
             Head = source;
@@ -125,13 +121,30 @@ namespace DotNetApp.Collections
 
         public ListBinding<T> Where(Func<T, bool> predicate)
         {
+            foreach (Source source in Sources.Values)
+            {
+                var excluded = source.Map.Where(kvp => !predicate(kvp.Value.Item)).ToList();
+
+                foreach (var kvp in excluded)
+                {
+                    source.Map.Remove(kvp.Key);
+                    SourceItem sourceItem = kvp.Value;
+
+                    while (--sourceItem.ReferenceCount >= 0)
+                    {
+                        source.List.Remove(sourceItem.Item);
+                        Remove(sourceItem.Item);
+                    }
+                }
+            }
+
             Filters.Add(predicate);
             return this;
         }
 
         public ListBinding<T> OrderBy<TKey>(Func<T, TKey> keySelector, IComparer<TKey> comparer)
         {
-            Comparer = Comparer<T>.Create((x, y) => comparer.Compare(keySelector(x), keySelector(y)));
+            Sort(Comparer<T>.Create((x, y) => comparer.Compare(keySelector(x), keySelector(y))));
             return this;
         }
 
@@ -140,7 +153,7 @@ namespace DotNetApp.Collections
 
         public ListBinding<T> OrderByDescending<TKey>(Func<T, TKey> keySelector, IComparer<TKey> comparer)
         {
-            Comparer = Comparer<T>.Create((x, y) => comparer.Compare(keySelector(y), keySelector(x)));
+            Sort(Comparer<T>.Create((x, y) => comparer.Compare(keySelector(y), keySelector(x))));
             return this;
         }
 
@@ -188,7 +201,6 @@ namespace DotNetApp.Collections
 
             foreach (object item in items)
             {
-
                 if (source.Map.TryGetValue(item, out SourceItem sourceItem))
                 {
                     ++sourceItem.ReferenceCount;
@@ -240,6 +252,19 @@ namespace DotNetApp.Collections
                     yield return sourceItem.Item;
                 }
             }
+        }
+
+        private void Sort(IComparer<T> comparer)
+        {
+            Comparer = comparer;
+
+            var target = Target.ToList();
+
+            RemoveRange(0, Target);
+
+            target.Sort(comparer);
+
+            InsertRange(0, target);
         }
 
         private void InsertSorted(T item)
