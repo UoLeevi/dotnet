@@ -54,8 +54,9 @@ namespace DotNetApp.EntityFrameworkCore
 
         public virtual CSharpEntityTypeCodeEditor AddInheritedTypes(IEntityType entityType, params string[] typeNames)
         {
-            Select($"(public partial class {entityType.Name})( *: *)?");
-            return Write($"{Match.Groups[1].Value} : {string.Join(", ", typeNames)}");
+            Select($"(public partial class {entityType.Name})( *:)?");
+            var separator = string.IsNullOrWhiteSpace(Match.Groups[2].Value) ? "" : ","; 
+            return Write($"{Match.Groups[1].Value} : {string.Join(", ", typeNames)}{separator}");
         }
 
         public virtual CSharpEntityTypeCodeEditor WriteLinesToEndOfClassDefinition(string className, params string[] lines)

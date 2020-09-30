@@ -27,12 +27,12 @@ namespace DotNetApp.Test
             source.Add(3);
             source.Add(4);
 
-            binding.AddListTarget(projection1);
+            binding.AddTarget(projection1);
 
             source.Add(5);
             source.Add(6);
 
-            binding.AddListTarget(projection2);
+            binding.AddTarget(projection2);
 
             source.Add(7);
             source.Add(8);
@@ -89,12 +89,12 @@ namespace DotNetApp.Test
             source3.Add(3);
             source2.Add(4);
 
-            binding.AddListTarget(projection1);
+            binding.AddTarget(projection1);
 
             source1.Add(5);
             source2.Add(6);
 
-            binding.AddListTarget(projection2);
+            binding.AddTarget(projection2);
 
             source1.Add(7);
             source3.Add(8);
@@ -159,12 +159,12 @@ namespace DotNetApp.Test
             source3.Add(3);
             source2.Add(4);
 
-            binding.AddListTarget(projection1);
+            binding.AddTarget(projection1);
 
             source1.Add(5);
             source2.Add(6);
 
-            binding.AddListTarget(projection2);
+            binding.AddTarget(projection2);
 
             source1.Add(7);
             source3.Add(8);
@@ -232,12 +232,12 @@ namespace DotNetApp.Test
             source3.Add(3);
             source2.Add(4);
 
-            binding.AddListTarget(projection1);
+            binding.AddTarget(projection1);
 
             source1.Add(5);
             source2.Add(6);
 
-            binding.AddListTarget(projection2);
+            binding.AddTarget(projection2);
 
             source1.Add(7);
             source3.Add(8);
@@ -319,12 +319,12 @@ namespace DotNetApp.Test
             source3.Add(3);
             source2.Add(4);
 
-            binding.AddListTarget(projection1);
+            binding.AddTarget(projection1);
 
             source1.Add(5);
             source2.Add(6);
 
-            binding.AddListTarget(projection2);
+            binding.AddTarget(projection2);
 
             source1.Add(7);
             source3.Add(8);
@@ -412,12 +412,12 @@ namespace DotNetApp.Test
             source3.Add(3);
             source2.Add(4);
 
-            binding.AddListTarget(projection1);
+            binding.AddTarget(projection1);
 
             source1.Add(5);
             source2.Add(6);
 
-            binding.AddListTarget(projection2);
+            binding.AddTarget(projection2);
 
             source1.Add(7);
             source3.Add(8);
@@ -510,12 +510,12 @@ namespace DotNetApp.Test
             source3.Add(3);
             source2.Add(4);
 
-            binding.AddListTarget(projection1);
+            binding.AddTarget(projection1);
 
             source1.Add(5);
             source2.Add(6);
 
-            binding.AddListTarget(projection2);
+            binding.AddTarget(projection2);
 
             source1.Add(7);
             source3.Add(8);
@@ -563,6 +563,76 @@ namespace DotNetApp.Test
             expectedForked = source1.Concat(source2).Concat(source3).Where(filterPredicate).ToList();
             expectedForked.Sort();
             Assert.Equal(expectedForked, projection3);
+        }
+
+        [Fact]
+        public void DoesSupportNullItems()
+        {
+            ObservableCollection<string> source1 = new ObservableCollection<string>();
+            ObservableCollection<string> source2 = new ObservableCollection<string>();
+            ObservableCollection<string> source3 = new ObservableCollection<string>();
+
+            List<string> projection1 = new List<string>();
+            List<string> projection2 = new List<string>();
+
+            Func<string, string> transformation = i => i?.ToString();
+
+            ListBinding<string> binding = new ListBinding<string>()
+                .AddSource(source1, transformation)
+                .AddSource(source2, transformation)
+                .AddSource(source3, transformation);
+
+            source1.Add("0");
+            source2.Add("1");
+            source3.Add("2");
+            source3.Add("3");
+            source2.Add("4");
+
+            binding.AddTarget(projection1);
+
+            source1.Add(null);
+            source2.Add(null);
+
+            binding.AddTarget(projection2);
+
+            source1.Add(null);
+            source3.Add(null);
+
+            Assert.Equal(source1.Concat(source2).Concat(source3).Select(transformation), projection1);
+            Assert.Equal(source1.Concat(source2).Concat(source3).Select(transformation), projection2);
+
+            source2.Remove("4");
+            source1.Remove("5");
+            source2.Remove("6");
+
+            Assert.Equal(source1.Concat(source2).Concat(source3).Select(transformation), projection1);
+            Assert.Equal(source1.Concat(source2).Concat(source3).Select(transformation), projection2);
+
+            source1.Insert(1, "4");
+            source3.Insert(0, "5");
+            source1.Insert(1, "6");
+
+            Assert.Equal(source1.Concat(source2).Concat(source3).Select(transformation), projection1);
+            Assert.Equal(source1.Concat(source2).Concat(source3).Select(transformation), projection2);
+
+            source1[1] = "0";
+            source1[2] = "0";
+            source1[0] = "5";
+            source3[1] = "4";
+
+            Assert.Equal(source1.Concat(source2).Concat(source3).Select(transformation), projection1);
+            Assert.Equal(source1.Concat(source2).Concat(source3).Select(transformation), projection2);
+
+            source1.Clear();
+
+            Assert.Equal(source1.Concat(source2).Concat(source3).Select(transformation), projection1);
+            Assert.Equal(source1.Concat(source2).Concat(source3).Select(transformation), projection2);
+
+            source3.Clear();
+            source2.Clear();
+
+            Assert.Equal(source1.Concat(source2).Concat(source3).Select(transformation), projection1);
+            Assert.Equal(source1.Concat(source2).Concat(source3).Select(transformation), projection2);
         }
     }
 }
