@@ -11,7 +11,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DotNetApp.Test", "DotNetApp
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DotNetApp.CredentialManager", "DotNetApp.CredentialManager\DotNetApp.CredentialManager.csproj", "{BFE4AA97-F066-4C59-BCB3-CC33FF713299}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotNetApp.Collections", "DotNetApp.Collections\DotNetApp.Collections.csproj", "{4BB14B7C-8AF5-4913-BD16-6CEF6A16D232}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DotNetApp.Collections", "DotNetApp.Collections\DotNetApp.Collections.csproj", "{4BB14B7C-8AF5-4913-BD16-6CEF6A16D232}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

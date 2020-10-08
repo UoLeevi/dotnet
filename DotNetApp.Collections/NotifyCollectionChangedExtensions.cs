@@ -11,5 +11,4 @@ namespace DotNetApp.Collections
             EventExtensions.RaiseEvent(sender, nameof(INotifyCollectionChanged.CollectionChanged), args);
         }
     }
-
 }

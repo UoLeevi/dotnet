@@ -177,12 +177,14 @@ namespace DotNetApp.Collections
         {
             if (Sources.TryGetValue(eventSource, out Source source))
             {
-                Sources.Remove(eventSource);
                 eventSource.CollectionChanged -= Synchronize;
                 Synchronize(eventSource, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+                Sources.Remove(eventSource);
 
-                var nextSource = Sources.Values.FirstOrDefault(s => s.Previous == source);
-                nextSource.Previous = source.Previous;
+                if (Sources.Values.FirstOrDefault(s => s.Previous == source) is Source nextSource)
+                {
+                    nextSource.Previous = source.Previous;
+                }
 
                 if (Head == source)
                 {

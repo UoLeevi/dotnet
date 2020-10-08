@@ -5,7 +5,7 @@
     <Authors>Leevi Uotinen</Authors>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <Description>Utilities for editing text.</Description>
+    <Description>Utilities for data binding and editing text.</Description>
   </PropertyGroup>
 
   <PropertyGroup>
