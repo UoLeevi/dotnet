@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Reflection;
 
 namespace DotNetApp.Extensions
@@ -16,12 +17,21 @@ namespace DotNetApp.Extensions
         private static FieldInfo GetEventField(this object sender, string eventName)
         {
             Type sourceType = sender.GetType();
-
             return eventFields.GetOrAdd((sourceType, eventName), GetEventField);
 
             FieldInfo GetEventField((Type, string) _)
             {
-                return sourceType.GetField(eventName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy);
+                while (sourceType is Type)
+                {
+                    if (sourceType.GetField(eventName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly) is FieldInfo fieldInfo)
+                    {
+                        return fieldInfo;
+                    }
+
+                    sourceType = sourceType.BaseType;
+                }
+
+                throw new ArgumentException($"Sender does not implement {nameof(INotifyPropertyChanged)} interface.", nameof(sender));
             }
         }
 
@@ -38,5 +48,4 @@ namespace DotNetApp.Extensions
             }
         }
     }
-
 }

@@ -10,31 +10,59 @@ namespace DotNetApp.Test
         {
             public event PropertyChangedEventHandler PropertyChanged;
 
-            private string property;
             public string Property
             {
-                get => property;
-                set
-                {
-                    if (value == property) return;
-                    property = value;
-                    this.RaisePropertyChanged();
-                }
+                get => this.GetProperty<string>();
+                set => this.SetProperty(value);
+            }
+
+            public Dummy Other
+            {
+                get => this.GetProperty<Dummy>();
+                set => this.SetProperty(value);
             }
 
             [DependsOn(nameof(Property))]
             public string ComputedProperty => Property;
+
+            [DependsOn("Other.Property")]
+            public string OtherComputedProperty => Other?.Property;
         }
 
         [Fact]
-        public void DoesForwardPropertyChangedEventsToDependentProperties()
+        public void DoesForwardPropertyChangedEventsToChainedDependentProperties()
         {
             var dummy = new Dummy();
-            bool didNotify = false;
-            dummy.SubscribeToPropertyChanged(nameof(Dummy.ComputedProperty), d => didNotify = true);
-            Assert.False(didNotify);
-            dummy.Property = "anything but current value";
-            Assert.True(didNotify);
+            var otherDummy = new Dummy();
+
+            int notificationCount = 0;
+
+            dummy.SubscribeToPropertyChanged(nameof(Dummy.OtherComputedProperty), d => ++notificationCount);
+            Assert.True(notificationCount == 0);
+            
+            dummy.Other = otherDummy;
+            Assert.True(notificationCount == 1);
+
+            dummy.Property = "should have no effect";
+            Assert.True(notificationCount == 1);
+
+            otherDummy.Property = "should notify";
+            Assert.True(notificationCount == 2);
+
+            otherDummy.Other = dummy;
+            Assert.True(notificationCount == 2);
+
+            otherDummy.Other = otherDummy;
+            Assert.True(notificationCount == 2);
+
+            dummy.Other = null;
+            Assert.True(notificationCount == 3);
+
+            otherDummy.Property = "should not notify anymore";
+            Assert.True(notificationCount == 3);
+
+            dummy.Other = null;
+            Assert.True(notificationCount == 3);
         }
     }
 }
