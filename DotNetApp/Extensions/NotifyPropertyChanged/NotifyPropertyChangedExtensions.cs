@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using System.Linq.Expressions;
@@ -188,6 +189,82 @@ namespace DotNetApp.Extensions
                 action(src);
             }
         }
+
+        public static Action ForwardItemPropertyChanged<T>(this IEnumerable<T> source, string sourcePropertyName, INotifyPropertyChanged target, string targetPropertyName)
+            where T : class, INotifyPropertyChanged
+            => ForwardItemPropertyChanged<INotifyPropertyChanged>(source, null, sourcePropertyName, target, targetPropertyName);
+
+        public static Action ForwardItemPropertyChanged<T>(this IEnumerable<T> source, Func<T, bool> filterPredicate, string sourcePropertyName, INotifyPropertyChanged target, string targetPropertyName)
+            where T : class, INotifyPropertyChanged
+        {
+            var wr = new WeakReference(target);
+            return SubscribeToItemPropertyChanged(source, filterPredicate, sourcePropertyName, _ =>
+            {
+                if (!wr.IsAlive) return;
+                RaisePropertyChanged((INotifyPropertyChanged)wr.Target, targetPropertyName);
+            });
+        }
+
+        public static Action SubscribeToItemPropertyChanged<T>(this IEnumerable<T> source, string propertyName, Action<T> action)
+            where T : class, INotifyPropertyChanged
+            => SubscribeToItemPropertyChanged<T>(source, null, propertyName, action);
+
+        public static Action SubscribeToItemPropertyChanged<T>(this IEnumerable<T> source, Func<T, bool> filterPredicate, string propertyName, Action<T> action)
+            where T : class, INotifyPropertyChanged
+        {
+            var subscriptions = new ConditionalWeakTable<T, Action>();
+
+            foreach (var item in source.Distinct())
+            {
+                if (filterPredicate?.Invoke(item) is false) continue;
+                subscriptions.Add(item, item.SubscribeToPropertyChanged(propertyName, action));
+            }
+
+            if (source is INotifyCollectionChanged eventSource)
+            {
+                eventSource.CollectionChanged += (s, e) =>
+                {
+                    var items = (IEnumerable<T>)s;
+                    var empty = Enumerable.Empty<T>();
+                    var removed = e.OldItems?.Cast<T>().Distinct().Except(items) ?? empty;
+                    var added = e.NewItems?.Cast<T>().Distinct().Where(i => !subscriptions.TryGetValue(i, out _)) ?? empty;
+
+                    foreach (var item in removed)
+                    {
+                        if (subscriptions.TryGetValue(item, out Action unsubscribe))
+                        {
+                            subscriptions.Remove(item);
+                            unsubscribe();
+                        }
+                    }
+
+                    foreach (var item in added)
+                    {
+                        if (filterPredicate?.Invoke(item) is false) continue;
+                        subscriptions.Add(item, item.SubscribeToPropertyChanged(propertyName, action));
+                    }
+                };
+            }
+
+            var wr = new WeakReference(source);
+            return () =>
+            {
+                if (subscriptions is null || !wr.IsAlive) return;
+
+                var items = (IEnumerable<T>)wr.Target;
+
+                foreach (var item in items.Distinct())
+                {
+                    if (subscriptions.TryGetValue(item, out Action unsubscribe))
+                    {
+                        unsubscribe();
+                    }
+                }
+
+                subscriptions = null;
+            };
+        }
+
 
         public static void RaisePropertyChanged(this INotifyPropertyChanged sender, [CallerMemberName] string propertyName = default)
         {

@@ -1,4 +1,7 @@
-﻿using System.ComponentModel;
+﻿using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Linq;
 using DotNetApp.Extensions;
 using Xunit;
 
@@ -8,6 +11,11 @@ namespace DotNetApp.Test
     {
         public class Dummy : INotifyPropertyChanged
         {
+            public Dummy()
+            {
+                Collection = new ObservableCollection<Dummy>();
+            }
+
             public event PropertyChangedEventHandler PropertyChanged;
 
             public string Property
@@ -22,11 +30,17 @@ namespace DotNetApp.Test
                 set => this.SetProperty(value);
             }
 
-            [DependsOn(nameof(Property))]
-            public string ComputedProperty => Property;
+            public IEnumerable<Dummy> Collection
+            {
+                get => this.GetProperty<IEnumerable<Dummy>>();
+                set => this.SetProperty(value);
+            }
 
             [DependsOn("Other.Property")]
-            public string OtherComputedProperty => Other?.Property;
+            public string ComputedProperty => Other?.Property;
+
+            //[DependsOn("Collection[*].Property")]
+            public string LongestProperty => Collection?.Select(d => d.Property).OrderByDescending(p => p.Length).FirstOrDefault();
         }
 
         [Fact]
@@ -37,7 +51,7 @@ namespace DotNetApp.Test
 
             int notificationCount = 0;
 
-            dummy.SubscribeToPropertyChanged(nameof(Dummy.OtherComputedProperty), d => ++notificationCount);
+            dummy.SubscribeToPropertyChanged(nameof(Dummy.ComputedProperty), d => ++notificationCount);
             Assert.True(notificationCount == 0);
             
             dummy.Other = otherDummy;
@@ -63,6 +77,19 @@ namespace DotNetApp.Test
 
             dummy.Other = null;
             Assert.True(notificationCount == 3);
+        }
+
+        [Fact]
+        public void DoesForwardPropertyChangedEventsToChainedDependentPropertiesWithCollection()
+        {
+            var dummy = new Dummy();
+
+            int notificationCount = 0;
+
+            dummy.SubscribeToPropertyChanged(nameof(Dummy.LongestProperty), d => ++notificationCount);
+            Assert.True(notificationCount == 0);
+
+            
         }
     }
 }

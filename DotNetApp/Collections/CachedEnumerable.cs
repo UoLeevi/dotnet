@@ -6,6 +6,7 @@ using System.Threading;
 
 namespace DotNetApp.Collections
 {
+
     public class CachedEnumerable<T> : IEnumerable<T>, IDisposable
     {
         private ReaderWriterLockSlim rwlock;

@@ -49,7 +49,7 @@ namespace DotNetApp.Expressions
 
                 do
                 {
-                    foreach ((Peeker Peek, Parser<ExpressionNode> Parse) in AllowedChildren)
+                    foreach ((Peeker Peek, Parser<ExpressionNode> Parse) in AllowedNodes)
                     {
                         expr = exprMem.Span;
                         if (Peek(expr))
@@ -66,7 +66,7 @@ namespace DotNetApp.Expressions
                 } while (!exprMem.IsEmpty);
             }
 
-            private static readonly (Peeker Peek, Parser<ExpressionNode> Parse)[] AllowedChildren = new (Peeker, Parser<ExpressionNode>)[] 
+            private static readonly (Peeker Peek, Parser<ExpressionNode> Parse)[] AllowedNodes = new (Peeker, Parser<ExpressionNode>)[] 
             { 
                 (RecursiveDescent.Peek, RecursiveDescent.Parse),
                 (PropertySelector.Peek, PropertySelector.Parse),
