@@ -14,7 +14,7 @@ namespace DotNetApp.Extensions
     public static partial class NotifyPropertyChangedExtensions
     {
         private static ConditionalWeakTable<INotifyPropertyChanged, object> instanceTable;
-        private static ImmutableDictionary<Type, ImmutableDictionary<string, ImmutableStack<PropertyInfo>[]>> dependencyDefinitions;
+        private static ImmutableDictionary<Type, ImmutableDictionary<string, JsonPath[]>> dependencyDefinitions;
 
         private static void ConditionallyRegisterDependentInstance(INotifyPropertyChanged target)
         {
@@ -34,32 +34,20 @@ namespace DotNetApp.Extensions
             {
                 string targetPropertyName = dependency.Key;
 
-                foreach (ImmutableStack<PropertyInfo> properties in dependency.Value)
+                foreach (JsonPath jsonpath in dependency.Value)
                 {
+                    var dependencyNodes = ImmutableQueue.Create(jsonpath.Root.Nodes.ToArray());
                     INotifyPropertyChanged source = target;
-                    source.ForwardPropertyChanged(properties, target, targetPropertyName);
+                    source.ForwardPropertyChanged(dependencyNodes, target, targetPropertyName);
                 }
             }
-        }
-
-        private static ImmutableStack<PropertyInfo> FlattenChainedMemberExpression(MemberExpression memberExpression)
-        {
-            List<PropertyInfo> properties = new List<PropertyInfo>();
-
-            do
-            {
-                properties.Add(memberExpression.Member as PropertyInfo);
-                memberExpression = memberExpression.Expression as MemberExpression;
-            } while (memberExpression is MemberExpression);
-
-            return ImmutableStack.Create(properties.ToArray());
         }
 
         static NotifyPropertyChangedExtensions()
         {
             instanceTable = new ConditionalWeakTable<INotifyPropertyChanged, object>();
 
-            var propertyDependencyMap = new Dictionary<Type, ImmutableDictionary<string, ImmutableStack<PropertyInfo>[]>>();
+            var propertyDependencyMap = new Dictionary<Type, ImmutableDictionary<string, JsonPath[]>>();
 
             var assemblyName = typeof(NotifyPropertyChangedExtensions).Assembly.GetName();
 
@@ -73,7 +61,7 @@ namespace DotNetApp.Extensions
 
             foreach (var type in types)
             {
-                Dictionary<string, List<ImmutableStack<PropertyInfo>>> newDependencyMap = new Dictionary<string, List<ImmutableStack<PropertyInfo>>>();
+                Dictionary<string, List<JsonPath>> newDependencyMap = new Dictionary<string, List<JsonPath>>();
 
                 var propertiesWithDependencies = type
                     .GetProperties(BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
@@ -82,20 +70,21 @@ namespace DotNetApp.Extensions
 
                 foreach ((PropertyInfo property, DependsOnAttribute[] dependsOnAttributes) in propertiesWithDependencies)
                 {
-                    List<ImmutableStack<PropertyInfo>> dependencies = new List<ImmutableStack<PropertyInfo>>();
+                    List<JsonPath> dependencies = new List<JsonPath>();
                     newDependencyMap.Add(property.Name, dependencies);
 
                     foreach (DependsOnAttribute dependsOnAttribute in dependsOnAttributes)
                     {
-                        foreach (JsonPath propertyDependencyPath in dependsOnAttribute.PropertyDependencyPaths)
+                        foreach (string jsonpath in dependsOnAttribute.PropertyDependencies)
                         {
-                            MemberExpression memberExpression = propertyDependencyPath.ToExpression(type).Body as MemberExpression;
-                            dependencies.Add(FlattenChainedMemberExpression(memberExpression));
+                            JsonPath propertyDependency = new JsonPath(type, jsonpath);
+
+                            dependencies.Add(propertyDependency);
                         }
                     }
                 }
 
-                propertyDependencyMap[type] = newDependencyMap.Select(kvp => new KeyValuePair<string, ImmutableStack<PropertyInfo>[]>(kvp.Key, kvp.Value.ToArray())).ToImmutableDictionary();
+                propertyDependencyMap[type] = newDependencyMap.Select(kvp => new KeyValuePair<string, JsonPath[]>(kvp.Key, kvp.Value.ToArray())).ToImmutableDictionary();
             }
 
             dependencyDefinitions = propertyDependencyMap.ToImmutableDictionary();
@@ -130,31 +119,58 @@ namespace DotNetApp.Extensions
             return getter();
         }
 
-        private static Action ForwardPropertyChanged(this INotifyPropertyChanged source, ImmutableStack<PropertyInfo> properties, INotifyPropertyChanged target, string targetPropertyName)
+        private static Action ForwardPropertyChanged(this INotifyPropertyChanged source, ImmutableQueue<JsonPathNode> dependencyNodes, INotifyPropertyChanged target, string targetPropertyName)
         {
-            properties = properties.Pop(out PropertyInfo property);
-            string sourcePropertyName = property.Name;
-
-            Action unsubscribe = source.ForwardPropertyChanged(sourcePropertyName, target, targetPropertyName);
-
-            if (properties.IsEmpty) return unsubscribe;
-
-            INotifyPropertyChanged nestedSource = property.GetValue(source) as INotifyPropertyChanged;
-            Action unsubscribeNested = nestedSource?.ForwardPropertyChanged(properties, target, targetPropertyName);
-            unsubscribe += unsubscribeNested;
-
             WeakReference wr = new WeakReference(target);
-            unsubscribe += source.SubscribeToPropertyChanged(sourcePropertyName, sender =>
-            {
-                unsubscribe -= unsubscribeNested;
-                unsubscribeNested?.Invoke();
-                if (!wr.IsAlive) return;
-                INotifyPropertyChanged nestedSrc = property.GetValue(sender) as INotifyPropertyChanged;
-                unsubscribeNested = nestedSrc?.ForwardPropertyChanged(properties, (INotifyPropertyChanged)wr.Target, targetPropertyName);
-                unsubscribe += unsubscribeNested;
-            });
+            Action unsubscribe;
+            dependencyNodes = dependencyNodes.Dequeue(out var node);
 
-            return unsubscribe;
+            switch (node)
+            {
+                case JsonPathPropertySelectorNode propertySelectorNode:
+                    string sourcePropertyName = propertySelectorNode.PropertyName;
+                    unsubscribe = source.ForwardPropertyChanged(sourcePropertyName, target, targetPropertyName);
+
+                    if (dependencyNodes.IsEmpty) return unsubscribe;
+
+                    MemberExpression memberExpression = propertySelectorNode.Expression as MemberExpression;
+                    var property = memberExpression.Member as PropertyInfo;
+                    INotifyPropertyChanged nestedSource = property.GetValue(source) as INotifyPropertyChanged;
+                    Action unsubscribeNested = nestedSource?.ForwardPropertyChanged(dependencyNodes, target, targetPropertyName);
+                    unsubscribe += unsubscribeNested;
+
+                    unsubscribe += source.SubscribeToPropertyChanged(sourcePropertyName, sender =>
+                    {
+                        unsubscribe -= unsubscribeNested;
+                        unsubscribeNested?.Invoke();
+                        if (!wr.IsAlive) return;
+                        INotifyPropertyChanged nestedSrc = property.GetValue(sender) as INotifyPropertyChanged;
+                        unsubscribeNested = nestedSrc?.ForwardPropertyChanged(dependencyNodes, (INotifyPropertyChanged)wr.Target, targetPropertyName);
+                        unsubscribe += unsubscribeNested;
+                    });
+
+                    return unsubscribe;
+
+                case JsonPathItemsSelectorNode itemsSelectorNode:
+                    var collection = (IEnumerable<INotifyPropertyChanged>)source;
+                    dependencyNodes = ImmutableQueue.Create(itemsSelectorNode.Nodes.ToArray());
+                    dependencyNodes = dependencyNodes.Dequeue(out node);
+                    var itemNode = node as JsonPathPropertySelectorNode;
+                    unsubscribe = collection.ForwardItemPropertyChanged(itemNode.PropertyName, target, targetPropertyName);
+
+                    if (dependencyNodes.IsEmpty) return unsubscribe;
+
+                    unsubscribe += collection.SubscribeToItemPropertyChanged(itemNode.PropertyName, item => 
+                    {
+                        if (!wr.IsAlive) return;
+                        unsubscribe += item.ForwardPropertyChanged(dependencyNodes, (INotifyPropertyChanged)wr.Target, targetPropertyName);
+                    });
+
+                    return unsubscribe;
+
+                default:
+                    throw new NotImplementedException();
+            }
         }
 
         public static Action ForwardPropertyChanged(this INotifyPropertyChanged source, string sourcePropertyName, INotifyPropertyChanged target, string targetPropertyName, bool unsubscribeAfterEvent = false)
@@ -222,34 +238,20 @@ namespace DotNetApp.Extensions
 
             if (source is INotifyCollectionChanged eventSource)
             {
-                eventSource.CollectionChanged += (s, e) =>
-                {
-                    var items = (IEnumerable<T>)s;
-                    var empty = Enumerable.Empty<T>();
-                    var removed = e.OldItems?.Cast<T>().Distinct().Except(items) ?? empty;
-                    var added = e.NewItems?.Cast<T>().Distinct().Where(i => !subscriptions.TryGetValue(i, out _)) ?? empty;
-
-                    foreach (var item in removed)
-                    {
-                        if (subscriptions.TryGetValue(item, out Action unsubscribe))
-                        {
-                            subscriptions.Remove(item);
-                            unsubscribe();
-                        }
-                    }
-
-                    foreach (var item in added)
-                    {
-                        if (filterPredicate?.Invoke(item) is false) continue;
-                        subscriptions.Add(item, item.SubscribeToPropertyChanged(propertyName, action));
-                    }
-                };
+                eventSource.CollectionChanged += SourceCollectionChanged;
             }
 
             var wr = new WeakReference(source);
             return () =>
             {
-                if (subscriptions is null || !wr.IsAlive) return;
+                if (!wr.IsAlive) return;
+
+                if (wr.Target is INotifyCollectionChanged eventSrc)
+                {
+                    eventSrc.CollectionChanged -= SourceCollectionChanged;
+                }
+
+                if (subscriptions is null) return;
 
                 var items = (IEnumerable<T>)wr.Target;
 
@@ -262,6 +264,31 @@ namespace DotNetApp.Extensions
                 }
 
                 subscriptions = null;
+            };
+
+            void SourceCollectionChanged(object s, NotifyCollectionChangedEventArgs e)
+            {
+                var items = (IEnumerable<T>)s;
+                var empty = Enumerable.Empty<T>();
+                var removed = e.OldItems?.Cast<T>().Distinct().Except(items) ?? empty;
+                var added = e.NewItems?.Cast<T>().Distinct().Where(i => !subscriptions.TryGetValue(i, out _)) ?? empty;
+
+                foreach (var item in removed)
+                {
+                    if (subscriptions.TryGetValue(item, out Action unsubscribe))
+                    {
+                        subscriptions.Remove(item);
+                        unsubscribe();
+                        action(item);
+                    }
+                }
+
+                foreach (var item in added)
+                {
+                    if (filterPredicate?.Invoke(item) is false) continue;
+                    action(item);
+                    subscriptions.Add(item, item.SubscribeToPropertyChanged(propertyName, action));
+                }
             };
         }
 

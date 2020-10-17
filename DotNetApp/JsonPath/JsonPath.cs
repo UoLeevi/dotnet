@@ -1,29 +1,40 @@
 ﻿using System;
-using System.Collections.Immutable;
 using System.Linq.Expressions;
-using System.Reflection;
+using LinqExpression = System.Linq.Expressions.Expression;
 
 namespace DotNetApp.Expressions
 {
     public class JsonPath
     {
-        internal JsonPath(string jsonpathExpression)
+        public JsonPath(Type type, string jsonpath)
         {
-            ReadOnlySpan<char> expr = jsonpathExpression.AsSpan();
-            Root = JsonPathAst.Root.Parse(ref expr);
+            ReadOnlySpan<char> expr = jsonpath.AsSpan();
+
+            if (expr[0] == '$')
+            {
+                expr.Slice(1);
+            }
+
+            if (expr[0] != '.' && expr[0] != '[')
+            {
+                expr = string.Concat(".", expr.ToString()).AsSpan();
+            }
+
+
+            Root = new JsonPathRootNode(expr);
+            Expression = ToExpression(type);
         }
 
-        public JsonPathAst.Root Root;
-
-        public static JsonPath Parse(string jsonpathExpression)
-            => new JsonPath(jsonpathExpression);
-
-        public LambdaExpression ToExpression(Type type)
+        private LambdaExpression ToExpression(Type type)
         {
-            ParameterExpression parameter = Expression.Parameter(type, "arg");
+            ParameterExpression parameter = LinqExpression.Parameter(type, "arg");
             Expression body = Root.ToExpression(parameter);
 
-            return Expression.Lambda(body, parameter);
+            return LinqExpression.Lambda(body, parameter);
         }
+
+        public LambdaExpression Expression { get; }
+
+        public JsonPathRootNode Root { get; }
     }
 }

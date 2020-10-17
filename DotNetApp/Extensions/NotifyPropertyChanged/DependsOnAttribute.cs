@@ -1,5 +1,4 @@
 ﻿using System;
-using DotNetApp.Expressions;
 
 namespace DotNetApp.Extensions
 {
@@ -12,14 +11,9 @@ namespace DotNetApp.Extensions
         /// <param name="propertyDependencies">An array of property names or jsonpath expressions which describe the dependencies of the property.</param>
         public DependsOnAttribute(params string[] propertyDependencies)
         {
-            PropertyDependencyPaths = new JsonPath[propertyDependencies.Length];
-
-            for (int i = 0; i < propertyDependencies.Length; ++i)
-            {
-                PropertyDependencyPaths[i] = new JsonPath(propertyDependencies[i]);
-            }
+            PropertyDependencies = propertyDependencies;
         }
 
-        internal JsonPath[] PropertyDependencyPaths { get; }
+        internal string[] PropertyDependencies { get; }
     }
 }
