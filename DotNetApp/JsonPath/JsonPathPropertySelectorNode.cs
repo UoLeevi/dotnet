@@ -42,9 +42,9 @@ namespace DotNetApp.Expressions
 
                 if (!identifier.Success) return false;
 
-                if (!expr.Slice(identifier.Length).StartsWith("']".AsSpan())) return false;
+                if (!expr.Slice(identifier.Length + 2).StartsWith("']".AsSpan())) return false;
 
-                advance = identifier.Length + 2;
+                advance = identifier.Length + 4;
                 node = new JsonPathPropertySelectorNode()
                 {
                     PropertyName = identifier.Value

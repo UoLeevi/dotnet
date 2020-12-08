@@ -4,10 +4,11 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading;
 
 namespace DotNetApp.Collections
 {
-    /// <summary>
+    /// <summary> 
     /// A list binding that forwards changes made to observable source collections to a target list or lists.
     /// Binding can be configured to combine multiple source collections, filter, transform and sort list items
     /// and raise INotifyCollectionChanged.CollectionChanged events.
@@ -38,8 +39,14 @@ namespace DotNetApp.Collections
             internal Func<object, bool> Filter;
         }
 
+        private class Target
+        {
+            internal IList<T> List;
+            internal SynchronizationContext Context;
+        }
+
         private List<T> List { get; }
-        private List<IList<T>> Targets;
+        private Dictionary<IList<T>, Target> Targets;
         private Dictionary<object, Source> Sources { get; }
         private Source Head { get; set; }
         private List<Func<T, bool>> Filters { get; set; }
@@ -63,7 +70,7 @@ namespace DotNetApp.Collections
         public ListBinding()
         {
             List = new List<T>();
-            Targets = new List<IList<T>>();
+            Targets = new Dictionary<IList<T>, Target>();
             Sources = new Dictionary<object, Source>();
             Filters = new List<Func<T, bool>>();
         }
@@ -117,7 +124,7 @@ namespace DotNetApp.Collections
             {
                 source.Filter = item => filter((TSourceItem)item);
             }
-            
+
             Sources.Add(eventSource, source);
 
             Synchronize(eventSource, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, collection.ToList(), 0));
@@ -285,15 +292,25 @@ namespace DotNetApp.Collections
         /// Changes to source lists will be forwarded to this list. Current items in the list binding will be inserted to the target list.
         /// </summary>
         /// <param name="target">A list instance to add as binding target.</param>
+        /// <param name="context">Updates to target list are perfomed in this synchronization context. Current synchronization context is used by default.</param>
         /// <returns>A reference to this instance after the operation has completed.</returns>
-        public ListBinding<T> AddTarget(IList<T> target)
+        public ListBinding<T> AddTarget(IList<T> target, SynchronizationContext context = default)
         {
+            if (context == default)
+            {
+                context = SynchronizationContext.Current;
+            }
+
             foreach (var item in List)
             {
                 target.Add(item);
             }
 
-            Targets.Add(target);
+            Targets.Add(target, new Target
+            {
+                List = target,
+                Context = context
+            });
             return this;
         }
 
@@ -395,9 +412,19 @@ namespace DotNetApp.Collections
 
             List.Insert(index, item);
 
-            foreach (var target in Targets)
+            foreach (var target in Targets.Values)
             {
-                target.Insert(index, item);
+                var context = target.Context;
+                var list = target.List;
+
+                if (context == SynchronizationContext.Current)
+                {
+                    list.Insert(index, item);
+                }
+                else
+                {
+                    context.Send(InsertCallback, (list, index, item));
+                }
             }
 
             if (CollectionChanged != null)
@@ -416,9 +443,19 @@ namespace DotNetApp.Collections
             int index = List.IndexOf(item);
             List.RemoveAt(index);
 
-            foreach (var target in Targets)
+            foreach (var target in Targets.Values)
             {
-                target.RemoveAt(index);
+                var context = target.Context;
+                var list = target.List;
+
+                if (context == SynchronizationContext.Current)
+                {
+                    list.RemoveAt(index);
+                }
+                else
+                {
+                    context.Send(RemoveAtCallback, (list, index));
+                }
             }
 
             if (CollectionChanged != null)
@@ -435,12 +472,22 @@ namespace DotNetApp.Collections
         {
             List.InsertRange(index, newItems);
 
-            foreach (var target in Targets)
+            foreach (var target in Targets.Values)
             {
-                for (int i = 0; i < newItems.Count; ++i)
+                var context = target.Context;
+                var list = target.List;
+
+                if (context == SynchronizationContext.Current)
                 {
-                    T item = newItems[i];
-                    target.Insert(index + i, item);
+                    for (int i = 0; i < newItems.Count; ++i)
+                    {
+                        T item = newItems[i];
+                        list.Insert(index + i, item);
+                    }
+                }
+                else
+                {
+                    context.Send(InsertRangeCallback, (list, index, newItems));
                 }
             }
 
@@ -460,16 +507,26 @@ namespace DotNetApp.Collections
             List.RemoveRange(oldIndex, count);
             List.InsertRange(newIndex, items);
 
-            foreach (var target in Targets)
+            foreach (var target in Targets.Values)
             {
-                for (int i = 0; i < count; ++i)
-                {
-                    target.RemoveAt(oldIndex);
-                }
+                var context = target.Context;
+                var list = target.List;
 
-                for (int i = 0; i < count; ++i)
+                if (context == SynchronizationContext.Current)
                 {
-                    target.Insert(newIndex + i, items[i]);
+                    for (int i = oldIndex + count - 1; i >= oldIndex; --i)
+                    {
+                        list.RemoveAt(i);
+                    }
+
+                    for (int i = 0; i < count; ++i)
+                    {
+                        list.Insert(newIndex + i, items[i]);
+                    }
+                }
+                else
+                {
+                    context.Send(MoveRangeCallback, (list, oldIndex, newIndex, count, items));
                 }
             }
 
@@ -485,11 +542,21 @@ namespace DotNetApp.Collections
             int count = oldItems.Count;
             List.RemoveRange(index, count);
 
-            foreach (var target in Targets)
+            foreach (var target in Targets.Values)
             {
-                for (int i = 0; i < count; ++i)
+                var context = target.Context;
+                var list = target.List;
+
+                if (context == SynchronizationContext.Current)
                 {
-                    target.RemoveAt(index);
+                    for (int i = index + count - 1; i >= index; --i)
+                    {
+                        list.RemoveAt(i);
+                    }
+                }
+                else
+                {
+                    context.Send(RemoveRangeCallback, (list, index, count));
                 }
             }
 
@@ -507,16 +574,26 @@ namespace DotNetApp.Collections
             List.RemoveRange(index, newItems.Count);
             List.InsertRange(index, newItems);
 
-            foreach (var target in Targets)
+            foreach (var target in Targets.Values)
             {
-                for (int i = 0; i < newItems.Count; ++i)
-                {
-                    target.RemoveAt(index);
-                }
+                var context = target.Context;
+                var list = target.List;
 
-                for (int i = 0; i < newItems.Count; ++i)
+                if (context == SynchronizationContext.Current)
                 {
-                    target.Insert(index + i, newItems[i]);
+                    for (int i = 0; i < newItems.Count; ++i)
+                    {
+                        list.RemoveAt(index);
+                    }
+
+                    for (int i = 0; i < newItems.Count; ++i)
+                    {
+                        list.Insert(index + i, newItems[i]);
+                    }
+                }
+                else
+                {
+                    context.Send(ReplaceRangeCallback, (list, index, newItems.Count, newItems));
                 }
             }
 
@@ -533,9 +610,19 @@ namespace DotNetApp.Collections
 
             List.Clear();
 
-            foreach (var target in Targets)
+            foreach (var target in Targets.Values)
             {
-                target.Clear();
+                var context = target.Context;
+                var list = target.List;
+
+                if (context == SynchronizationContext.Current)
+                {
+                    list.Clear();
+                }
+                else
+                {
+                    context.Send(ClearCallback, list);
+                }
             }
 
             if (CollectionChanged != null)
@@ -698,7 +785,7 @@ namespace DotNetApp.Collections
                         Clear();
                         break;
                     }
-                    
+
                     if (Comparer == null && !Sources.Values.Any(s => s.Filter != null))
                     {
                         RemoveRange(offset, oldTargetItems);
@@ -712,6 +799,74 @@ namespace DotNetApp.Collections
 
                     break;
             }
+        }
+
+        private static void InsertCallback(object state)
+        {
+            (IList<T> list, int index, T item) = (ValueTuple<IList<T>, int, T>)state;
+            list.Insert(index, item);
+        }
+
+        private static void RemoveAtCallback(object state)
+        {
+            (IList<T> list, int index) = (ValueTuple<IList<T>, int>)state;
+            list.RemoveAt(index);
+        }
+
+        private static void InsertRangeCallback(object state)
+        {
+            (IList<T> list, int index, IEnumerable<T> items) = (ValueTuple<IList<T>, int, List<T>>)state;
+
+            foreach (T item in items)
+            {
+                list.Insert(index++, item);
+            }
+        }
+
+        private static void RemoveRangeCallback(object state)
+        {
+            (IList<T> list, int index, int count) = (ValueTuple<IList<T>, int, int>)state;
+
+            for (int i = index + count - 1; i >= index; --i)
+            {
+                list.RemoveAt(i);
+            }
+        }
+
+        private static void MoveRangeCallback(object state)
+        {
+            (IList<T> list, int oldIndex, int newIndex, int count, IEnumerable<T> items) = (ValueTuple<IList<T>, int, int, int, List<T>>)state;
+
+            for (int i = oldIndex + count - 1; i >= oldIndex; --i)
+            {
+                list.RemoveAt(i);
+            }
+
+            foreach (T item in items)
+            {
+                list.Insert(newIndex++, item);
+            }
+        }
+
+        private static void ReplaceRangeCallback(object state)
+        {
+            (IList<T> list, int index, int count, IEnumerable<T> items) = (ValueTuple<IList<T>, int, int, List<T>>)state;
+
+            for (int i = index + count - 1; i >= index; --i)
+            {
+                list.RemoveAt(i);
+            }
+
+            foreach (T item in items)
+            {
+                list.Insert(index++, item);
+            }
+        }
+
+        private static void ClearCallback(object state)
+        {
+            IList<T> list = (IList<T>)state;
+            list.Clear();
         }
 
         private void NotifyCountChanged()
