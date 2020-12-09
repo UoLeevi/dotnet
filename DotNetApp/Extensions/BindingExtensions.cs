@@ -21,7 +21,7 @@ namespace DotNetApp.Extensions
                 context = SynchronizationContext.Current;
             }
 
-            action = value =>
+            Action<TProperty> bind = value =>
             {
                 if (context == SynchronizationContext.Current)
                 {
@@ -33,9 +33,8 @@ namespace DotNetApp.Extensions
                 }
             };
 
-            action(getValue(source));
-            return source.SubscribeToPropertyChanged(propertyInfo.Name, s => action(getValue(s)));
+            bind(getValue(source));
+            return source.SubscribeToPropertyChanged(propertyInfo.Name, s => bind(getValue(s)));
         }
     }
-
 }
