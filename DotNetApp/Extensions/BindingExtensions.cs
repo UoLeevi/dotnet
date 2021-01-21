@@ -8,20 +8,25 @@ namespace DotNetApp.Extensions
 {
     public static class BindingExtensions
     {
-        public static Action Bind<TSource, TProperty>(this TSource source, Expression<Func<TSource, TProperty>> property, Action<TProperty> action, SynchronizationContext context = default)
+        public static Action Bind<TSource, TProperty>(
+            this TSource source,
+            Expression<Func<TSource, TProperty>> property,
+            Action<TProperty> action,
+            SynchronizationContext context = default)
             where TSource : INotifyPropertyChanged
         {
             MemberExpression propertyAccess = (MemberExpression)property.Body;
-            PropertyInfo propertyInfo = (PropertyInfo)propertyAccess.Member;
-            Func<TSource, TProperty> getValue = s => (TProperty)propertyInfo.GetValue(s);
+            string propertyName = propertyAccess.Member.Name;
+            Func<TSource, TProperty> getValue = property.Compile();
             SendOrPostCallback callback = state => action((TProperty)state);
+
 
             if (context is null)
             {
                 context = SynchronizationContext.Current;
             }
 
-            Action<TProperty> bind = value =>
+            Action<TProperty> execute = (value) =>
             {
                 if (context == SynchronizationContext.Current)
                 {
@@ -33,8 +38,54 @@ namespace DotNetApp.Extensions
                 }
             };
 
-            bind(getValue(source));
-            return source.SubscribeToPropertyChanged(propertyInfo.Name, s => bind(getValue(s)));
+            execute(getValue(source));
+            return source.SubscribeToPropertyChanged(propertyName, s => execute(getValue(source)));
+        }
+
+        public static Action Bind<TSource, TProperty>(
+            this TSource source,
+            Expression<Func<TSource, TProperty>> property,
+            Action<TProperty, TProperty> action,
+            SynchronizationContext context = default)
+            where TSource : INotifyPropertyChanged
+        {
+            MemberExpression propertyAccess = (MemberExpression)property.Body;
+            string propertyName = propertyAccess.Member.Name;
+            Func<TSource, TProperty> getValue = property.Compile();
+            TProperty previousValue = getValue(source);
+
+            SendOrPostCallback callback = state =>
+            {
+                var (oldValue, newValue) = ((TProperty, TProperty))state;
+                action(oldValue, newValue);
+            };
+
+
+            if (context is null)
+            {
+                context = SynchronizationContext.Current;
+            }
+
+            Action<TProperty, TProperty> execute = (oldValue, newValue) =>
+            {
+                if (context == SynchronizationContext.Current)
+                {
+                    action(oldValue, newValue);
+                }
+                else
+                {
+                    context.Send(callback, (oldValue, newValue));
+                }
+            };
+
+            execute(previousValue, previousValue);
+
+            return source.SubscribeToPropertyChanged(propertyName, s =>
+            {
+                TProperty oldValue = previousValue;
+                previousValue = getValue(s);
+                execute(oldValue, previousValue);
+            });
         }
     }
 }
