@@ -24,6 +24,7 @@
     <ProjectReference Include="..\DotNetApp.Collections\DotNetApp.Collections.csproj" />
     <ProjectReference Include="..\DotNetApp.CredentialManager\DotNetApp.CredentialManager.csproj" />
     <ProjectReference Include="..\DotNetApp\DotNetApp.csproj" />
+    <ProjectReference Include="..\DotNetApp.SourceGenerator\DotNetApp.SourceGenerator.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
   </ItemGroup>
 
 </Project>

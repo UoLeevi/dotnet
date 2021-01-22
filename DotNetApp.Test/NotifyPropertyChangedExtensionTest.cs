@@ -7,41 +7,39 @@ using Xunit;
 
 namespace DotNetApp.Test
 {
+    public partial class Dummy : INotifyPropertyChanged
+    {
+        public Dummy()
+        {
+            Collection = new ObservableCollection<Dummy>();
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        [GenerateProperty]
+        private string property;
+
+        public Dummy Other
+        {
+            get => this.GetProperty<Dummy>();
+            set => this.SetProperty(value);
+        }
+
+        public IEnumerable<Dummy> Collection
+        {
+            get => this.GetProperty<IEnumerable<Dummy>>();
+            set => this.SetProperty(value);
+        }
+
+        [DependsOn("Other.Property")]
+        public string ComputedProperty => Other?.Property;
+
+        [DependsOn("Collection[*].Property")]
+        public string LongestProperty => Collection?.Select(d => d.Property).OrderByDescending(p => p.Length).FirstOrDefault();
+    }
+
     public class NotifyPropertyChangedExtensionTest
     {
-        public class Dummy : INotifyPropertyChanged
-        {
-            public Dummy()
-            {
-                Collection = new ObservableCollection<Dummy>();
-            }
-
-            public event PropertyChangedEventHandler PropertyChanged;
-
-            public string Property
-            {
-                get => this.GetProperty<string>();
-                set => this.SetProperty(value);
-            }
-
-            public Dummy Other
-            {
-                get => this.GetProperty<Dummy>();
-                set => this.SetProperty(value);
-            }
-
-            public IEnumerable<Dummy> Collection
-            {
-                get => this.GetProperty<IEnumerable<Dummy>>();
-                set => this.SetProperty(value);
-            }
-
-            [DependsOn("Other.Property")]
-            public string ComputedProperty => Other?.Property;
-
-            [DependsOn("Collection[*].Property")]
-            public string LongestProperty => Collection?.Select(d => d.Property).OrderByDescending(p => p.Length).FirstOrDefault();
-        }
 
         [Fact]
         public void DoesForwardPropertyChangedEventsToChainedDependentProperties()

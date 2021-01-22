@@ -2,15 +2,16 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>7.3</LangVersion>
     <Authors>Leevi Uotinen</Authors>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <Description>Utilities for working with collections.</Description>
+    <Description>Source generators to reduce boilerplate code.</Description>
   </PropertyGroup>
 
   <PropertyGroup>
-    <AssemblyName>DotNetApp.Collections</AssemblyName>
-    <RootNamespace>DotNetApp.Collections</RootNamespace>
+    <AssemblyName>DotNetApp.SourceGenerator</AssemblyName>
+    <RootNamespace>DotNetApp.SourceGenerator</RootNamespace>
     <VersionMajor>0</VersionMajor>
     <VersionMinor>$([System.DateTime]::UtcNow.ToString('yyMM'))</VersionMinor>
     <VersionBuild>$([System.DateTime]::UtcNow.ToString('dHH'))</VersionBuild>
@@ -27,18 +28,21 @@
     <Copy SourceFiles="$(OutputPath)\..\$(PackageId).$(PackageVersion).nupkg" DestinationFolder="$(MSBuildProjectDirectory)\..\Nuget\" />
   </Target>
 
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="3.8.0" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\DotNetApp\DotNetApp.csproj" />
   </ItemGroup>
 
-  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
-    <DebugType>full</DebugType>
-    <DebugSymbols>true</DebugSymbols>
-  </PropertyGroup>
-
   <PropertyGroup>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <OutputType>Library</OutputType>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
