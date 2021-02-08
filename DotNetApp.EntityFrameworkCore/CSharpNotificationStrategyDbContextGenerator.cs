@@ -15,7 +15,7 @@ namespace DotNetApp.EntityFrameworkCore
         {
             return new TextEditor { Text = base.WriteCode(model, contextName, connectionString, contextNamespace, modelNamespace, useDataAnnotations, suppressConnectionStringWarning) }
                 .MoveToPattern(@"OnModelCreatingPartial\(modelBuilder\);")
-                .Write("modelBuilder.HasChangeTrackingStrategy(ChangeTrackingStrategy.ChangingAndChangedNotifications);\r\n\r\n            ")
+                .Write("modelBuilder.HasChangeTrackingStrategy(ChangeTrackingStrategy.ChangingAndChangedNotificationsWithOriginalValues);\r\n\r\n            ")
                 .Text;
         }
     }

@@ -75,20 +75,15 @@ namespace DotNetApp.Test
             string value;
 
             var dummy1 = new Dummy();
-            value = (string)JsonPath.Evaluate(dummy1, jsonpathExpression);
-            Assert.True(value == dummy1.Property);
-
+            var dummy2 = new Dummy { Other = dummy1 };
             dummy1.Property = "dummy1 value";
-            value = (string)JsonPath.Evaluate(dummy1, jsonpathExpression);
-            Assert.True(value == dummy1.Property);
 
-            var dummy2 = new Dummy();
             value = (string)JsonPath.Evaluate(dummy2, jsonpathExpression);
-            Assert.True(value == dummy2.Property);
+            Assert.True(value == dummy2.Other.Property);
 
             dummy2.Property = "dummy2 value";
             value = (string)JsonPath.Evaluate(dummy2, jsonpathExpression);
-            Assert.True(value == dummy2.Property);
+            Assert.True(value == dummy2.Other.Property);
         }
 
         //    [Theory]

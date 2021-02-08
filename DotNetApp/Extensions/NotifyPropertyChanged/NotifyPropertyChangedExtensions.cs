@@ -90,7 +90,12 @@ namespace DotNetApp.Extensions
             dependencyDefinitions = propertyDependencyMap.ToImmutableDictionary();
         }
 
-        public static void SetProperty<TValue>(this INotifyPropertyChanged source, TValue value, Action<TValue> callback = default, [CallerMemberName] string propertyName = default)
+        public static void InitializeChangeNotifications(this INotifyPropertyChanged source)
+        {
+            ConditionallyRegisterDependentInstance(source);
+        }
+
+        public static void SetProperty<TValue>(this INotifyPropertyChanged source, TValue value, [CallerMemberName] string propertyName = default)
         {
             ConditionallyRegisterDependentInstance(source);
 
@@ -99,9 +104,13 @@ namespace DotNetApp.Extensions
 
             if (EqualityComparer<TValue>.Default.Equals(value, current)) return;
 
+            if (source is INotifyPropertyChanging notifyChangingSource)
+            {
+                notifyChangingSource.RaisePropertyChanging(propertyName);
+            }
+
             fields[propertyName] = value;
             source.RaisePropertyChanged(propertyName);
-            callback?.Invoke(value);
         }
 
         public static TValue GetProperty<TValue>(this INotifyPropertyChanged source, [CallerMemberName] string propertyName = default)
@@ -115,7 +124,6 @@ namespace DotNetApp.Extensions
         public static TValue GetProperty<TValue>(this INotifyPropertyChanged source, Func<TValue> getter, [CallerMemberName] string propertyName = default)
         {
             ConditionallyRegisterDependentInstance(source);
-
             return getter();
         }
 
@@ -160,7 +168,7 @@ namespace DotNetApp.Extensions
 
                     if (dependencyNodes.IsEmpty) return unsubscribe;
 
-                    unsubscribe += collection.SubscribeToItemPropertyChanged(itemNode.PropertyName, item => 
+                    unsubscribe += collection.SubscribeToItemPropertyChanged(itemNode.PropertyName, item =>
                     {
                         if (!wr.IsAlive) return;
                         unsubscribe += item.ForwardPropertyChanged(dependencyNodes, (INotifyPropertyChanged)wr.Target, targetPropertyName);
@@ -173,6 +181,16 @@ namespace DotNetApp.Extensions
             }
         }
 
+        public static Action ForwardPropertyChanging(this INotifyPropertyChanging source, string sourcePropertyName, INotifyPropertyChanging target, string targetPropertyName, bool unsubscribeAfterEvent = false)
+        {
+            WeakReference wr = new WeakReference(target);
+            return SubscribeToPropertyChanging(source, sourcePropertyName, _ =>
+            {
+                if (!wr.IsAlive) return;
+                RaisePropertyChanging((INotifyPropertyChanging)wr.Target, targetPropertyName);
+            }, unsubscribeAfterEvent);
+        }
+
         public static Action ForwardPropertyChanged(this INotifyPropertyChanged source, string sourcePropertyName, INotifyPropertyChanged target, string targetPropertyName, bool unsubscribeAfterEvent = false)
         {
             WeakReference wr = new WeakReference(target);
@@ -183,6 +201,29 @@ namespace DotNetApp.Extensions
             }, unsubscribeAfterEvent);
         }
 
+        public static Action SubscribeToPropertyChanging<T>(this T source, string propertyName, Action<T> action, bool unsubscribeAfterEvent = false)
+            where T : INotifyPropertyChanging
+        {
+            ConditionallyRegisterDependentInstance((INotifyPropertyChanged)source);
+
+            source.PropertyChanging += SourcePropertyChanging;
+            return () => source.PropertyChanging -= SourcePropertyChanging;
+
+            void SourcePropertyChanging(object sender, PropertyChangingEventArgs e)
+            {
+                if (e.PropertyName != propertyName) return;
+
+                T src = (T)sender;
+
+                if (unsubscribeAfterEvent)
+                {
+                    src.PropertyChanging -= SourcePropertyChanging;
+                }
+
+                action(src);
+            }
+        }
+        
         public static Action SubscribeToPropertyChanged<T>(this T source, string propertyName, Action<T> action, bool unsubscribeAfterEvent = false)
             where T : INotifyPropertyChanged
         {
@@ -297,6 +338,12 @@ namespace DotNetApp.Extensions
         {
             if (sender == null) return;
             EventExtensions.RaiseEvent(sender, nameof(INotifyPropertyChanged.PropertyChanged), new PropertyChangedEventArgs(propertyName));
+        }
+
+        public static void RaisePropertyChanging(this INotifyPropertyChanging sender, [CallerMemberName] string propertyName = default)
+        {
+            if (sender == null) return;
+            EventExtensions.RaiseEvent(sender, nameof(INotifyPropertyChanging.PropertyChanging), new PropertyChangingEventArgs(propertyName));
         }
     }
 }

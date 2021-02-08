@@ -68,12 +68,12 @@ namespace {namespaceName}
 
                 if (!classSymbol.Interfaces.Contains(notifyChangingSymbol))
                 {
-                    source.Append($"public event {typeof(System.ComponentModel.PropertyChangingEventHandler).FullName} PropertyChanging;");
+                    source.Append($"        public event {typeof(System.ComponentModel.PropertyChangingEventHandler).FullName} PropertyChanging;");
                 }
                 
                 if (!classSymbol.Interfaces.Contains(notifyChangedSymbol))
                 {
-                    source.Append($"public event {typeof(System.ComponentModel.PropertyChangedEventHandler).FullName} PropertyChanged;");
+                    source.Append($"        public event {typeof(System.ComponentModel.PropertyChangedEventHandler).FullName} PropertyChanged;");
                 }
 
                 // create properties for each field 
@@ -82,7 +82,7 @@ namespace {namespaceName}
                     ProcessField(source, fieldSymbol, attributeSymbol);
                 }
 
-                source.Append("} }");
+                source.Append("    }\n}");
                 return source.ToString();
             }
         }
@@ -116,7 +116,7 @@ namespace {namespaceName}
             {{
                 if (this.{fieldName} == value) return;
                 this.PropertyChanging?.Invoke(this, new System.ComponentModel.PropertyChangingEventArgs(nameof({propertyName})));
-                this.{fieldName} = value; 
+                this.{fieldName} = value;
                 this.PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof({propertyName})));
             }}
         }}

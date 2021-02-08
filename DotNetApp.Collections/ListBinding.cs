@@ -45,6 +45,7 @@ namespace DotNetApp.Collections
             internal SynchronizationContext Context;
         }
 
+        private object lockObject = new object();
         private List<T> List { get; }
         private Dictionary<IList<T>, Target> Targets;
         private Dictionary<object, Source> Sources { get; }
@@ -636,168 +637,171 @@ namespace DotNetApp.Collections
 
         private void Synchronize(object sender, NotifyCollectionChangedEventArgs e)
         {
-            Source source = Sources[sender];
-
-            List<T> newTargetItems = MapNewItems(source, e.NewItems).ToList();
-            List<T> oldTargetItems = e.Action == NotifyCollectionChangedAction.Reset
-                ? source.List.ToList()
-                : e.Action == NotifyCollectionChangedAction.Move
-                    ? MapItems(source, e.OldItems).ToList()
-                    : MapOldItems(source, e.OldItems).ToList();
-
-            switch (e.Action)
+            lock (lockObject)
             {
-                case NotifyCollectionChangedAction.Add:
-                    if (e.NewStartingIndex < 0 || Filters.Any() || source.Filter != null)
-                    {
-                        source.List.AddRange(newTargetItems);
-                        break;
-                    }
+                Source source = Sources[sender];
 
-                    source.List.InsertRange(e.NewStartingIndex, newTargetItems);
+                List<T> newTargetItems = MapNewItems(source, e.NewItems).ToList();
+                List<T> oldTargetItems = e.Action == NotifyCollectionChangedAction.Reset
+                    ? source.List.ToList()
+                    : e.Action == NotifyCollectionChangedAction.Move
+                        ? MapItems(source, e.OldItems).ToList()
+                        : MapOldItems(source, e.OldItems).ToList();
 
-                    break;
-
-                case NotifyCollectionChangedAction.Move:
-                    if (Comparer != null || Filters.Any() || source.Filter != null) return;
-
-                    source.List.RemoveRange(e.OldStartingIndex, e.OldItems.Count);
-                    source.List.InsertRange(e.NewStartingIndex, oldTargetItems);
-
-                    break;
-
-                case NotifyCollectionChangedAction.Remove:
-                    if (e.OldStartingIndex < 0 || Filters.Any() || source.Filter != null)
-                    {
-                        foreach (var item in oldTargetItems)
-                        {
-                            source.List.Remove(item);
-                        }
-
-                        break;
-                    }
-
-                    source.List.RemoveRange(e.OldStartingIndex, e.OldItems.Count);
-
-                    break;
-
-                case NotifyCollectionChangedAction.Replace:
-                    if (Filters.Any() || source.Filter != null)
-                    {
-                        foreach (var item in oldTargetItems)
-                        {
-                            source.List.Remove(item);
-                        }
-
+                switch (e.Action)
+                {
+                    case NotifyCollectionChangedAction.Add:
                         if (e.NewStartingIndex < 0 || Filters.Any() || source.Filter != null)
                         {
                             source.List.AddRange(newTargetItems);
+                            break;
+                        }
+
+                        source.List.InsertRange(e.NewStartingIndex, newTargetItems);
+
+                        break;
+
+                    case NotifyCollectionChangedAction.Move:
+                        if (Comparer != null || Filters.Any() || source.Filter != null) return;
+
+                        source.List.RemoveRange(e.OldStartingIndex, e.OldItems.Count);
+                        source.List.InsertRange(e.NewStartingIndex, oldTargetItems);
+
+                        break;
+
+                    case NotifyCollectionChangedAction.Remove:
+                        if (e.OldStartingIndex < 0 || Filters.Any() || source.Filter != null)
+                        {
+                            foreach (var item in oldTargetItems)
+                            {
+                                source.List.Remove(item);
+                            }
+
+                            break;
+                        }
+
+                        source.List.RemoveRange(e.OldStartingIndex, e.OldItems.Count);
+
+                        break;
+
+                    case NotifyCollectionChangedAction.Replace:
+                        if (Filters.Any() || source.Filter != null)
+                        {
+                            foreach (var item in oldTargetItems)
+                            {
+                                source.List.Remove(item);
+                            }
+
+                            if (e.NewStartingIndex < 0 || Filters.Any() || source.Filter != null)
+                            {
+                                source.List.AddRange(newTargetItems);
+                            }
+
+                            break;
+                        }
+
+                        source.List.RemoveRange(e.OldStartingIndex, e.NewItems.Count);
+                        source.List.InsertRange(e.NewStartingIndex, newTargetItems);
+
+                        break;
+
+                    case NotifyCollectionChangedAction.Reset:
+                        source.List.Clear();
+
+                        break;
+                }
+
+                int offset = 0;
+
+                while (source.Previous != null)
+                {
+                    source = source.Previous;
+                    offset += source.List.Count;
+                }
+
+                switch (e.Action)
+                {
+                    case NotifyCollectionChangedAction.Add:
+                        if (Comparer == null && e.NewStartingIndex >= 0 && !Filters.Any() && !Sources.Values.Any(s => s.Filter != null))
+                        {
+                            int index = offset + e.NewStartingIndex;
+                            InsertRange(index, newTargetItems);
+                            break;
+                        }
+
+                        foreach (var item in newTargetItems)
+                        {
+                            InsertSorted(item);
                         }
 
                         break;
-                    }
 
-                    source.List.RemoveRange(e.OldStartingIndex, e.NewItems.Count);
-                    source.List.InsertRange(e.NewStartingIndex, newTargetItems);
+                    case NotifyCollectionChangedAction.Move:
+                        if (Comparer == null)
+                        {
+                            int newIndex = offset + e.NewStartingIndex;
+                            int oldIndex = offset + e.OldStartingIndex;
+                            MoveRange(oldIndex, newIndex, oldTargetItems);
+                            break;
+                        }
 
-                    break;
-
-                case NotifyCollectionChangedAction.Reset:
-                    source.List.Clear();
-
-                    break;
-            }
-
-            int offset = 0;
-
-            while (source.Previous != null)
-            {
-                source = source.Previous;
-                offset += source.List.Count;
-            }
-
-            switch (e.Action)
-            {
-                case NotifyCollectionChangedAction.Add:
-                    if (Comparer == null && e.NewStartingIndex >= 0 && !Filters.Any() && !Sources.Values.Any(s => s.Filter != null))
-                    {
-                        int index = offset + e.NewStartingIndex;
-                        InsertRange(index, newTargetItems);
                         break;
-                    }
 
-                    foreach (var item in newTargetItems)
-                    {
-                        InsertSorted(item);
-                    }
+                    case NotifyCollectionChangedAction.Remove:
+                        if (Comparer == null && e.OldStartingIndex >= 0 && !Sources.Values.Any(s => s.Filter != null))
+                        {
+                            int oldIndex = offset + e.OldStartingIndex;
+                            RemoveRange(oldIndex, oldTargetItems);
+                            break;
+                        }
 
-                    break;
+                        foreach (var item in oldTargetItems)
+                        {
+                            Remove(item);
+                        }
 
-                case NotifyCollectionChangedAction.Move:
-                    if (Comparer == null)
-                    {
-                        int newIndex = offset + e.NewStartingIndex;
-                        int oldIndex = offset + e.OldStartingIndex;
-                        MoveRange(oldIndex, newIndex, oldTargetItems);
                         break;
-                    }
 
-                    break;
+                    case NotifyCollectionChangedAction.Replace:
+                        if (Comparer == null && e.OldStartingIndex >= 0 && !Sources.Values.Any(s => s.Filter != null))
+                        {
+                            int index = offset + e.OldStartingIndex;
+                            ReplaceRange(index, newTargetItems, oldTargetItems);
+                            break;
+                        }
 
-                case NotifyCollectionChangedAction.Remove:
-                    if (Comparer == null && e.OldStartingIndex >= 0 && !Sources.Values.Any(s => s.Filter != null))
-                    {
-                        int oldIndex = offset + e.OldStartingIndex;
-                        RemoveRange(oldIndex, oldTargetItems);
+                        foreach (var item in oldTargetItems)
+                        {
+                            Remove(item);
+                        }
+
+                        foreach (var item in newTargetItems)
+                        {
+                            InsertSorted(item);
+                        }
+
                         break;
-                    }
 
-                    foreach (var item in oldTargetItems)
-                    {
-                        Remove(item);
-                    }
+                    case NotifyCollectionChangedAction.Reset:
+                        if (Sources.Count == 1)
+                        {
+                            Clear();
+                            break;
+                        }
 
-                    break;
+                        if (Comparer == null && !Sources.Values.Any(s => s.Filter != null))
+                        {
+                            RemoveRange(offset, oldTargetItems);
+                            break;
+                        }
 
-                case NotifyCollectionChangedAction.Replace:
-                    if (Comparer == null && e.OldStartingIndex >= 0 && !Sources.Values.Any(s => s.Filter != null))
-                    {
-                        int index = offset + e.OldStartingIndex;
-                        ReplaceRange(index, newTargetItems, oldTargetItems);
+                        foreach (var item in oldTargetItems)
+                        {
+                            Remove(item);
+                        }
+
                         break;
-                    }
-
-                    foreach (var item in oldTargetItems)
-                    {
-                        Remove(item);
-                    }
-
-                    foreach (var item in newTargetItems)
-                    {
-                        InsertSorted(item);
-                    }
-
-                    break;
-
-                case NotifyCollectionChangedAction.Reset:
-                    if (Sources.Count == 1)
-                    {
-                        Clear();
-                        break;
-                    }
-
-                    if (Comparer == null && !Sources.Values.Any(s => s.Filter != null))
-                    {
-                        RemoveRange(offset, oldTargetItems);
-                        break;
-                    }
-
-                    foreach (var item in oldTargetItems)
-                    {
-                        Remove(item);
-                    }
-
-                    break;
+                }
             }
         }
 
