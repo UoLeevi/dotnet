@@ -20,7 +20,7 @@ namespace DotNetApp.SourceGenerator
                 return;
 
             Compilation compilation = context.Compilation;
-            INamedTypeSymbol attributeSymbol = compilation.GetTypeByMetadataName(typeof(GeneratePropertyAttribute).FullName);
+            INamedTypeSymbol attributeSymbol = compilation.GetTypeByMetadataName("DotNetApp.GeneratePropertyAttribute");
             INamedTypeSymbol notifyChangingSymbol = compilation.GetTypeByMetadataName(typeof(System.ComponentModel.INotifyPropertyChanging).FullName);
             INamedTypeSymbol notifyChangedSymbol = compilation.GetTypeByMetadataName(typeof(System.ComponentModel.INotifyPropertyChanged).FullName);
 
@@ -95,7 +95,7 @@ namespace {namespaceName}
 
             // get the GenerateProperty attribute from the field, and any associated data
             AttributeData attributeData = fieldSymbol.GetAttributes().Single(ad => ad.AttributeClass.Equals(attributeSymbol, SymbolEqualityComparer.Default));
-            TypedConstant overridenNameOpt = attributeData.NamedArguments.SingleOrDefault(kvp => kvp.Key == nameof(GeneratePropertyAttribute.PropertyName)).Value;
+            TypedConstant overridenNameOpt = attributeData.NamedArguments.SingleOrDefault(kvp => kvp.Key == "PropertyName").Value;
 
             string propertyName = GeneratePropertyName(fieldName, overridenNameOpt);
             if (propertyName.Length == 0 || propertyName == fieldName)

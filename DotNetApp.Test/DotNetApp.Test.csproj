@@ -13,6 +13,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="DotNetApp.SourceGenerator" Version="0.2102.916.2" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="3.1.8" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.7.1" />
     <PackageReference Include="xunit" Version="2.4.1" />
@@ -26,7 +27,6 @@
     <ProjectReference Include="..\DotNetApp.Collections\DotNetApp.Collections.csproj" />
     <ProjectReference Include="..\DotNetApp.CredentialManager\DotNetApp.CredentialManager.csproj" />
     <ProjectReference Include="..\DotNetApp\DotNetApp.csproj" />
-    <ProjectReference Include="..\DotNetApp.SourceGenerator\DotNetApp.SourceGenerator.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
   </ItemGroup>
 
 </Project>
