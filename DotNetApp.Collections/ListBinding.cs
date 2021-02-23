@@ -388,13 +388,10 @@ namespace DotNetApp.Collections
         private void Sort(IComparer<T> comparer)
         {
             Comparer = comparer;
-
+            var oldItems = List.ToList();
             var target = List.ToList();
-
-            RemoveRange(0, List);
-
+            RemoveRange(0, oldItems);
             target.Sort(comparer);
-
             InsertRange(0, target);
         }
 
