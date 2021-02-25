@@ -130,7 +130,7 @@ namespace DotNetApp.Extensions
         private static Action ForwardPropertyChanged(this INotifyPropertyChanged source, ImmutableQueue<JsonPathNode> dependencyNodes, INotifyPropertyChanged target, string targetPropertyName)
         {
             WeakReference wr = new WeakReference(target);
-            Action unsubscribe;
+            Action unsubscribe = null;
             dependencyNodes = dependencyNodes.Dequeue(out var node);
 
             switch (node)
@@ -141,38 +141,45 @@ namespace DotNetApp.Extensions
 
                     if (dependencyNodes.IsEmpty) return unsubscribe;
 
-                    MemberExpression memberExpression = propertySelectorNode.Expression as MemberExpression;
-                    var property = memberExpression.Member as PropertyInfo;
-                    INotifyPropertyChanged nestedSource = property.GetValue(source) as INotifyPropertyChanged;
-                    Action unsubscribeNested = nestedSource?.ForwardPropertyChanged(dependencyNodes, target, targetPropertyName);
-                    unsubscribe += unsubscribeNested;
+                    Action unsubscribeNested = null;
+
+                    if (propertySelectorNode.GetValue(source) is INotifyPropertyChanged nestedSource)
+                    {
+                        unsubscribeNested = nestedSource.ForwardPropertyChanged(dependencyNodes, target, targetPropertyName);
+                        unsubscribe += unsubscribeNested;
+                    }
 
                     unsubscribe += source.SubscribeToPropertyChanged(sourcePropertyName, sender =>
                     {
                         unsubscribe -= unsubscribeNested;
                         unsubscribeNested?.Invoke();
                         if (!wr.IsAlive) return;
-                        INotifyPropertyChanged nestedSrc = property.GetValue(sender) as INotifyPropertyChanged;
-                        unsubscribeNested = nestedSrc?.ForwardPropertyChanged(dependencyNodes, (INotifyPropertyChanged)wr.Target, targetPropertyName);
-                        unsubscribe += unsubscribeNested;
+
+                        if (propertySelectorNode.GetValue(source) is INotifyPropertyChanged nestedSrc)
+                        {
+                            unsubscribeNested = nestedSrc.ForwardPropertyChanged(dependencyNodes, (INotifyPropertyChanged)wr.Target, targetPropertyName);
+                            unsubscribe += unsubscribeNested;
+                        }
                     });
 
                     return unsubscribe;
 
                 case JsonPathItemsSelectorNode itemsSelectorNode:
-                    var collection = (IEnumerable<INotifyPropertyChanged>)source;
-                    dependencyNodes = ImmutableQueue.Create(itemsSelectorNode.Nodes.ToArray());
-                    dependencyNodes = dependencyNodes.Dequeue(out node);
-                    var itemNode = node as JsonPathPropertySelectorNode;
-                    unsubscribe = collection.ForwardItemPropertyChanged(itemNode.PropertyName, target, targetPropertyName);
-
-                    if (dependencyNodes.IsEmpty) return unsubscribe;
-
-                    unsubscribe += collection.SubscribeToItemPropertyChanged(itemNode.PropertyName, item =>
+                    if (source is IEnumerable<INotifyPropertyChanged> collection)
                     {
-                        if (!wr.IsAlive) return;
-                        unsubscribe += item.ForwardPropertyChanged(dependencyNodes, (INotifyPropertyChanged)wr.Target, targetPropertyName);
-                    });
+                        dependencyNodes = ImmutableQueue.Create(itemsSelectorNode.Nodes.ToArray());
+                        dependencyNodes = dependencyNodes.Dequeue(out node);
+                        var itemNode = node as JsonPathPropertySelectorNode;
+                        unsubscribe = collection.ForwardItemPropertyChanged(itemNode.PropertyName, target, targetPropertyName);
+
+                        if (dependencyNodes.IsEmpty) return unsubscribe;
+
+                        unsubscribe += collection.SubscribeToItemPropertyChanged(itemNode.PropertyName, item =>
+                        {
+                            if (!wr.IsAlive) return;
+                            unsubscribe += item.ForwardPropertyChanged(dependencyNodes, (INotifyPropertyChanged)wr.Target, targetPropertyName);
+                        });
+                    }
 
                     return unsubscribe;
 

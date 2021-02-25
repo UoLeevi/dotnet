@@ -62,6 +62,23 @@ namespace DotNetApp.Expressions
             return base.ToExpression(expression);
         }
 
+        private Func<object, object> getValueDelegate;
+
+        public object GetValue(object source)
+        {
+            if (getValueDelegate is null)
+            {
+                var memberExpression = Expression as MemberExpression;
+                var parameterExpression = Expression.Parameter(typeof(object));
+                var castExpression = Expression.Convert(parameterExpression, memberExpression.Member.DeclaringType);
+                var memberAccessExpression = Expression.MakeMemberAccess(castExpression, memberExpression.Member);
+                var lambda = Expression.Lambda<Func<object, object>>(memberAccessExpression, parameterExpression);
+                getValueDelegate = lambda.Compile();
+            }
+
+            return getValueDelegate(source);
+        }
+
         private static Regex CSharpIdentifierRegex = new Regex(@"^[\w_]+[\d\w_]*", RegexOptions.Compiled);
     }
 }
