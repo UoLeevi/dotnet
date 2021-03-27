@@ -49,32 +49,32 @@ namespace DotNetApp.Test
 
             int notificationCount = 0;
 
-            dummy.SubscribeToPropertyChanged(nameof(Dummy.ComputedProperty), d => ++notificationCount);
-            Assert.True(notificationCount == 0);
+            dummy.Bind(d => d.ComputedProperty, _ => ++notificationCount);
+            Assert.True(notificationCount == 1);
             
             dummy.Other = otherDummy;
-            Assert.True(notificationCount == 1);
+            Assert.True(notificationCount == 2);
 
             dummy.Property = "should have no effect";
-            Assert.True(notificationCount == 1);
+            Assert.True(notificationCount == 2);
 
             otherDummy.Property = "should notify";
-            Assert.True(notificationCount == 2);
+            Assert.True(notificationCount == 3);
 
             otherDummy.Other = dummy;
-            Assert.True(notificationCount == 2);
+            Assert.True(notificationCount == 3);
 
             otherDummy.Other = otherDummy;
-            Assert.True(notificationCount == 2);
+            Assert.True(notificationCount == 3);
 
             dummy.Other = null;
-            Assert.True(notificationCount == 3);
+            Assert.True(notificationCount == 4);
 
             otherDummy.Property = "should not notify anymore";
-            Assert.True(notificationCount == 3);
+            Assert.True(notificationCount == 4);
 
             dummy.Other = null;
-            Assert.True(notificationCount == 3);
+            Assert.True(notificationCount == 4);
         }
 
         [Fact]
@@ -88,53 +88,53 @@ namespace DotNetApp.Test
 
             int notificationCount = 0;
 
-            dummy.SubscribeToPropertyChanged(nameof(Dummy.LongestProperty), d => ++notificationCount);
-            Assert.True(notificationCount == 0);
-
-            dummy.Property = "no effect";
-            Assert.True(notificationCount == 0);
-
-            item1.Property = "no effect";
-            Assert.True(notificationCount == 0);
-
-            collection.Add(item1);
-            Assert.True(notificationCount == 0);
-
-            dummy.Collection = collection;
+            dummy.Bind(d => d.LongestProperty, _ => ++notificationCount);
             Assert.True(notificationCount == 1);
 
-            collection.Remove(item1);
-            Assert.True(notificationCount == 2);
-
-            collection.Add(item1);
-            Assert.True(notificationCount == 3);
-
-            collection.Add(item2);
-            Assert.True(notificationCount == 4);
-
-            collection.Add(item3);
-            Assert.True(notificationCount == 5);
-
-            item1.Property = "should notify";
-            Assert.True(notificationCount == 6);
-
-            item2.Property = "should notify";
-            Assert.True(notificationCount == 7);
-
-            collection.Remove(item3);
-            Assert.True(notificationCount == 8);
-
-            item3.Property = "no effect";
-            Assert.True(notificationCount == 8);
-
-            dummy.Collection = null;
-            Assert.True(notificationCount == 9);
+            dummy.Property = "no effect";
+            Assert.True(notificationCount == 1);
 
             item1.Property = "no effect";
-            Assert.True(notificationCount == 9);
+            Assert.True(notificationCount == 1);
+
+            collection.Add(item1);
+            Assert.True(notificationCount == 1);
+
+            dummy.Collection = collection;
+            Assert.True(notificationCount == 2);
+
+            collection.Remove(item1);
+            Assert.True(notificationCount == 3);
+
+            collection.Add(item1);
+            Assert.True(notificationCount == 4);
+
+            collection.Add(item2);
+            Assert.True(notificationCount == 5);
 
             collection.Add(item3);
+            Assert.True(notificationCount == 6);
+
+            item1.Property = "should notify";
+            Assert.True(notificationCount == 7);
+
+            item2.Property = "should notify";
+            Assert.True(notificationCount == 8);
+
+            collection.Remove(item3);
             Assert.True(notificationCount == 9);
+
+            item3.Property = "no effect";
+            Assert.True(notificationCount == 9);
+
+            dummy.Collection = null;
+            Assert.True(notificationCount == 10);
+
+            item1.Property = "no effect";
+            Assert.True(notificationCount == 10);
+
+            collection.Add(item3);
+            Assert.True(notificationCount == 10);
         }
     }
 }

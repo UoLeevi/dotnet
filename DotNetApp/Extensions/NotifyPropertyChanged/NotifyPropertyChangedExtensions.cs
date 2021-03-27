@@ -4,13 +4,24 @@ using System.Collections.Immutable;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using DotNetApp.Expressions;
 
 namespace DotNetApp.Extensions
 {
+    public class PropertyChangedExtendedEventArgs<T> : PropertyChangedEventArgs
+    {
+        public T OldValue { get; }
+        public T NewValue { get; }
+
+        public PropertyChangedExtendedEventArgs(string propertyName, T oldValue, T newValue) : base(propertyName)
+        {
+            OldValue = oldValue;
+            NewValue = newValue;
+        }
+    }
+
     public static partial class NotifyPropertyChangedExtensions
     {
         private static ConditionalWeakTable<INotifyPropertyChanged, object> instanceTable;
@@ -110,8 +121,9 @@ namespace DotNetApp.Extensions
             }
 
             fields[propertyName] = value;
-            source.RaisePropertyChanged(propertyName);
+            source.RaisePropertyChanged(current, value, propertyName);
         }
+
 
         public static TValue GetProperty<TValue>(this INotifyPropertyChanged source, [CallerMemberName] string propertyName = default)
         {
@@ -340,6 +352,11 @@ namespace DotNetApp.Extensions
             };
         }
 
+        public static void RaisePropertyChanged<T>(this INotifyPropertyChanged sender, T oldValue, T newValue, [CallerMemberName] string propertyName = default)
+        {
+            if (sender == null) return;
+            EventExtensions.RaiseEvent(sender, nameof(INotifyPropertyChanged.PropertyChanged), new PropertyChangedExtendedEventArgs<T>(propertyName, oldValue, newValue));
+        }
 
         public static void RaisePropertyChanged(this INotifyPropertyChanged sender, [CallerMemberName] string propertyName = default)
         {

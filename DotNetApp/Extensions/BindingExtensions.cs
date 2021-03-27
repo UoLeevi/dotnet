@@ -1,7 +1,6 @@
 ﻿using System;
 using System.ComponentModel;
 using System.Linq.Expressions;
-using System.Reflection;
 using System.Threading;
 
 namespace DotNetApp.Extensions
@@ -12,80 +11,87 @@ namespace DotNetApp.Extensions
             this TSource source,
             Expression<Func<TSource, TProperty>> property,
             Action<TProperty> action,
-            SynchronizationContext context = default)
-            where TSource : INotifyPropertyChanged
-        {
-            MemberExpression propertyAccess = (MemberExpression)property.Body;
-            string propertyName = propertyAccess.Member.Name;
-            Func<TSource, TProperty> getValue = property.Compile();
-            SendOrPostCallback callback = state => action((TProperty)state);
-
-
-            if (context is null)
-            {
-                context = SynchronizationContext.Current;
-            }
-
-            Action<TProperty> execute = (value) =>
-            {
-                if (context == SynchronizationContext.Current)
-                {
-                    action(value);
-                }
-                else
-                {
-                    context.Send(callback, value);
-                }
-            };
-
-            execute(getValue(source));
-            return source.SubscribeToPropertyChanged(propertyName, s => execute(getValue(source)));
-        }
+            SynchronizationContext context = null)
+            where TSource : class, INotifyPropertyChanged 
+            => Bind(source, property, (s, oldValue, newValue) => action(newValue), context);
+        
+        public static Action Bind<TSource, TProperty>(
+            this TSource source,
+            Expression<Func<TSource, TProperty>> property,
+            Action<TSource, TProperty> action,
+            SynchronizationContext context = null)
+            where TSource : class, INotifyPropertyChanged 
+            => Bind(source, property, (s, oldValue, newValue) => action(s, newValue), context);
 
         public static Action Bind<TSource, TProperty>(
             this TSource source,
             Expression<Func<TSource, TProperty>> property,
-            Action<TProperty, TProperty> action,
-            SynchronizationContext context = default)
-            where TSource : INotifyPropertyChanged
+            Action<TSource, TProperty, TProperty> action,
+            SynchronizationContext context = null)
+            where TSource : class, INotifyPropertyChanged
         {
             MemberExpression propertyAccess = (MemberExpression)property.Body;
             string propertyName = propertyAccess.Member.Name;
             Func<TSource, TProperty> getValue = property.Compile();
             TProperty previousValue = getValue(source);
 
-            SendOrPostCallback callback = state =>
-            {
-                var (oldValue, newValue) = ((TProperty, TProperty))state;
-                action(oldValue, newValue);
-            };
-
+            SendOrPostCallback callback;
+            Action<TSource, TProperty, TProperty> execute = action;
 
             if (context is null)
             {
-                context = SynchronizationContext.Current;
+                execute = action;
+            }
+            else
+            {
+                callback = state =>
+                {
+                    var (src, oldValue, newValue) = ((TSource, TProperty, TProperty))state;
+                    action(src, oldValue, newValue);
+                };
+
+                execute = (s, oldValue, newValue) =>
+                {
+                    if (context == SynchronizationContext.Current)
+                    {
+                        action(s, oldValue, newValue);
+                    }
+                    else
+                    {
+                        context.Send(callback, (s, oldValue, newValue));
+                    }
+                };
             }
 
-            Action<TProperty, TProperty> execute = (oldValue, newValue) =>
+            execute(source, previousValue, previousValue);
+            WeakReference<TSource> wr = new WeakReference<TSource>(source);
+            source = null;
+
+            return () =>
             {
-                if (context == SynchronizationContext.Current)
+                if (wr == null) return;
+
+                if (wr.TryGetTarget(out TSource s))
                 {
-                    action(oldValue, newValue);
+                    s.PropertyChanged -= PropertyChanged;
                 }
-                else
-                {
-                    context.Send(callback, (oldValue, newValue));
-                }
+
+                wr = null;
             };
 
-            execute(previousValue, previousValue);
-
-            return source.SubscribeToPropertyChanged(propertyName, s =>
+            void PropertyChanged(object sender, PropertyChangedEventArgs eventArgs)
             {
+                if (eventArgs.PropertyName != propertyName) return;
+
+                TSource s = (TSource)sender;
                 TProperty oldValue = previousValue;
-                previousValue = getValue(s);
-                execute(oldValue, previousValue);
-            });
+
+                previousValue = eventArgs is PropertyChangedExtendedEventArgs<TProperty> extendedEventArgs
+                    ? extendedEventArgs.NewValue
+                    : getValue(s);
+
+                execute(s, oldValue, previousValue);
+            }
         }
     }
 }
