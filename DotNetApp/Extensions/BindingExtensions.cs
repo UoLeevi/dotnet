@@ -7,6 +7,21 @@ namespace DotNetApp.Extensions
 {
     public static class BindingExtensions
     {
+        
+
+        //public static Action Bind<TSource>(
+        //    this TSource source,
+        //    string propertyName,
+        //    Action<TSource, object, object> action,
+        //    SynchronizationContext context = null)
+        //    where TSource : class, INotifyPropertyChanged
+        //{
+        //    var parameter = Expression.Parameter(source.GetType());
+        //    var property = Expression.Property(parameter, propertyName);
+        //    var cast = Expression.Convert(property, typeof(object));
+        //    var castedPropertyAccess = Expression.Lambda<Func<TSource, object>>(cast, parameter);
+        //}
+
         public static Action Bind<TSource, TProperty>(
             this TSource source,
             Expression<Func<TSource, TProperty>> property,
@@ -64,6 +79,7 @@ namespace DotNetApp.Extensions
             }
 
             execute(source, previousValue, previousValue);
+            source.PropertyChanged += PropertyChanged;
             WeakReference<TSource> wr = new WeakReference<TSource>(source);
             source = null;
 
