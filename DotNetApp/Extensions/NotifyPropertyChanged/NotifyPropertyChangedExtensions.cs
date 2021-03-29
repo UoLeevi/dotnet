@@ -180,17 +180,7 @@ namespace DotNetApp.Extensions
                     if (source is IEnumerable<INotifyPropertyChanged> collection)
                     {
                         dependencyNodes = ImmutableQueue.Create(itemsSelectorNode.Nodes.ToArray());
-                        dependencyNodes = dependencyNodes.Dequeue(out node);
-                        var itemNode = node as JsonPathPropertySelectorNode;
-                        unsubscribe = collection.ForwardItemPropertyChanged(itemNode.PropertyName, target, targetPropertyName);
-
-                        if (dependencyNodes.IsEmpty) return unsubscribe;
-
-                        unsubscribe += collection.SubscribeToItemPropertyChanged(itemNode.PropertyName, item =>
-                        {
-                            if (!wr.IsAlive) return;
-                            unsubscribe += item.ForwardPropertyChanged(dependencyNodes, (INotifyPropertyChanged)wr.Target, targetPropertyName);
-                        });
+                        unsubscribe = collection.ForwardItemPropertyChanged(dependencyNodes, target, targetPropertyName);
                     }
 
                     return unsubscribe;
@@ -242,7 +232,7 @@ namespace DotNetApp.Extensions
                 action(src);
             }
         }
-        
+
         public static Action SubscribeToPropertyChanged<T>(this T source, string propertyName, Action<T> action, bool unsubscribeAfterEvent = false)
             where T : INotifyPropertyChanged
         {
@@ -266,6 +256,75 @@ namespace DotNetApp.Extensions
             }
         }
 
+        private static Action ForwardItemPropertyChanged<T>(this IEnumerable<T> source, ImmutableQueue<JsonPathNode> dependencyNodes, INotifyPropertyChanged target, string targetPropertyName)
+            where T : class, INotifyPropertyChanged
+        {
+            var subscriptions = new ConditionalWeakTable<T, Action>();
+            var wrTarget = new WeakReference(target);
+            var wrSource = new WeakReference(source);
+
+            foreach (var item in source.Distinct())
+            {
+                subscriptions.Add(item, item.ForwardPropertyChanged(dependencyNodes, target, targetPropertyName));
+            }
+
+            if (source is INotifyCollectionChanged eventSource)
+            {
+                eventSource.CollectionChanged += SourceCollectionChanged;
+            }
+
+            return () =>
+            {
+                if (!wrSource.IsAlive) return;
+
+                if (wrSource.Target is INotifyCollectionChanged eventSrc)
+                {
+                    eventSrc.CollectionChanged -= SourceCollectionChanged;
+                }
+
+                if (subscriptions is null) return;
+
+                var items = (IEnumerable<T>)wrSource.Target;
+
+                foreach (var item in items.Distinct())
+                {
+                    if (subscriptions.TryGetValue(item, out Action unsubscribe))
+                    {
+                        unsubscribe();
+                    }
+                }
+
+                subscriptions = null;
+            };
+
+            void SourceCollectionChanged(object s, NotifyCollectionChangedEventArgs e)
+            {
+                var items = (IEnumerable<T>)s;
+                var empty = Enumerable.Empty<T>();
+                var removed = e.OldItems?.Cast<T>().Distinct().Except(items) ?? empty;
+                var added = e.NewItems?.Cast<T>().Distinct().Where(i => !subscriptions.TryGetValue(i, out _)) ?? empty;
+
+                foreach (var item in removed)
+                {
+                    if (subscriptions.TryGetValue(item, out Action unsubscribe))
+                    {
+                        subscriptions.Remove(item);
+                        unsubscribe();
+                        if (!wrTarget.IsAlive) return;
+                        RaisePropertyChanged((INotifyPropertyChanged)wrTarget.Target, targetPropertyName);
+                    }
+                }
+
+                foreach (var item in added)
+                {
+                    if (!wrTarget.IsAlive) return;
+                    RaisePropertyChanged((INotifyPropertyChanged)wrTarget.Target, targetPropertyName);
+                    subscriptions.Add(item, item.ForwardPropertyChanged(dependencyNodes, (INotifyPropertyChanged)wrTarget.Target, targetPropertyName));
+                }
+            };
+        }
+
+
         public static Action ForwardItemPropertyChanged<T>(this IEnumerable<T> source, string sourcePropertyName, INotifyPropertyChanged target, string targetPropertyName)
             where T : class, INotifyPropertyChanged
             => ForwardItemPropertyChanged<INotifyPropertyChanged>(source, null, sourcePropertyName, target, targetPropertyName);
@@ -280,6 +339,8 @@ namespace DotNetApp.Extensions
                 RaisePropertyChanged((INotifyPropertyChanged)wr.Target, targetPropertyName);
             });
         }
+
+
 
         public static Action SubscribeToItemPropertyChanged<T>(this IEnumerable<T> source, string propertyName, Action<T> action)
             where T : class, INotifyPropertyChanged

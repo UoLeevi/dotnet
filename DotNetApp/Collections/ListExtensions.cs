@@ -6,6 +6,37 @@ namespace DotNetApp.Collections.Extensions
 {
     public static class ListExtensions
     {
+        public static int BinarySearch<T>(this IList<T> list, T value, IComparer<T> comparer = null)
+        {
+            if (list is null) throw new ArgumentNullException(nameof(list));
+
+            comparer = comparer ?? Comparer<T>.Default;
+
+            int lower = 0;
+            int upper = list.Count - 1;
+
+            while (lower <= upper)
+            {
+                int middle = lower + (upper - lower) / 2;
+                int comparison = comparer.Compare(value, list[middle]);
+
+                if (comparison == 0)
+                {
+                    return middle;
+                }
+                else if (comparison < 0)
+                {
+                    upper = middle - 1;
+                }
+                else
+                {
+                    lower = middle + 1;
+                }
+            }
+
+            return ~lower;
+        }
+
         public static void InplaceUpdateSorted<T>(this IList<T> target, IList<T> source, IComparer<T> comparer)
         {
             if (source.Count == 0)

@@ -35,7 +35,7 @@ namespace DotNetApp.Test
         public string ComputedProperty => Other?.Property;
 
         [DependsOn("Collection[*].Property")]
-        public string LongestProperty => Collection?.Select(d => d.Property).OrderByDescending(p => p.Length).FirstOrDefault();
+        public string LongestProperty => Collection?.Select(d => d.Property).OrderByDescending(p => p?.Length).FirstOrDefault();
     }
 
     public class NotifyPropertyChangedExtensionTest
