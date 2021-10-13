@@ -55,11 +55,10 @@ namespace DotNetApp.Collections.Extensions
                 return;
             }
 
-            int iTarget = 0;
-            int iSource = 0;
+            int i = 0;
 
-            T itemTarget = target[iTarget];
-            T itemSource = source[iSource];
+            T itemTarget = target[i];
+            T itemSource = source[i];
 
             while (true)
             {
@@ -70,72 +69,70 @@ namespace DotNetApp.Collections.Extensions
                     // Target item should appear before source item so target item does not exist in source list.
                     // -> Remove target item
 
-                    target.RemoveAt(iTarget);
+                    target.RemoveAt(i);
 
-                    if (iTarget == target.Count)
+                    if (i == target.Count)
                     {
-                        while (iSource < source.Count)
+                        while (i < source.Count)
                         {
-                            itemSource = source[iSource++];
+                            itemSource = source[i++];
                             target.Add(itemSource);
                         }
 
                         return;
                     }
 
-                    itemTarget = target[iTarget];
+                    itemTarget = target[i];
                 }
                 else if (cmp > 0)
                 {
                     // Target item should appear after source item so the source item does not exist in target list.
                     // -> Insert source item
 
-                    target.Insert(iTarget++, itemSource);
-                    ++iSource;
+                    target.Insert(i++, itemSource);
 
-                    if (iSource == source.Count)
+                    if (i == source.Count)
                     {
-                        while (iTarget < target.Count)
+                        while (i < target.Count)
                         {
-                            target.RemoveAt(iSource);
+                            target.RemoveAt(i);
                         }
 
                         return;
                     }
 
-                    itemSource = source[iSource];
+                    itemSource = source[i];
                 }
                 else if (EqualityComparer<T>.Default.Equals(itemTarget, itemSource))
                 {
                     // Items exist in both lists
                     // -> No actions
 
-                    ++iTarget;
-                    ++iSource;
+                    ++i;
 
-                    if (iTarget == target.Count)
+                    if (i == target.Count)
                     {
-                        while (iSource < source.Count)
+                        while (i < source.Count)
                         {
-                            itemSource = source[iSource++];
+                            itemSource = source[i++];
                             target.Add(itemSource);
                         }
 
                         return;
                     }
 
-                    if (iSource == source.Count)
+                    if (i == source.Count)
                     {
-                        while (iTarget < target.Count)
+                        while (i < target.Count)
                         {
-                            target.RemoveAt(iSource);
+                            target.RemoveAt(i);
                         }
 
                         return;
                     }
 
-                    itemTarget = target[iTarget];
-                    itemSource = source[iSource];
+                    itemTarget = target[i];
+                    itemSource = source[i];
                 }
                 else
                 {

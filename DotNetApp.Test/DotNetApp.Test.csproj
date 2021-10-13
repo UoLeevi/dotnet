@@ -13,7 +13,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="DotNetApp.SourceGenerator" Version="0.2102.2515.38" />
+    <PackageReference Include="DotNetApp.SourceGenerator" Version="0.2103.2912.32" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="3.1.8" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.7.1" />
     <PackageReference Include="xunit" Version="2.4.1" />
