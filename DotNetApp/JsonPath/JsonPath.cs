@@ -17,7 +17,9 @@ namespace DotNetApp.Expressions
 
         public static JsonPath Create<T>(string jsonpath)
             where T : class
-            => Create(typeof(T), jsonpath);
+        {
+            return Create(typeof(T), jsonpath);
+        }
 
         public static JsonPath Create(Type type, string jsonpath)
         {
@@ -71,7 +73,7 @@ namespace DotNetApp.Expressions
         private LambdaExpression ToExpression(Type type)
         {
             ParameterExpression parameter = LinqExpression.Parameter(type, "arg");
-            Expression body = Root.ToExpression(parameter);
+            LinqExpression body = Root.ToExpression(parameter);
 
             return LinqExpression.Lambda(body, parameter);
         }

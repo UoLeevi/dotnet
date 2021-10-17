@@ -18,7 +18,7 @@ namespace DotNetApp.Utilities
 
         public static string Normalize(string a, NormalizationOptions flags = NormalizationOptions.Default)
         {
-            a = a ?? string.Empty;
+            a = a?.Normalize(NormalizationForm.FormD) ?? string.Empty;
 
             if (flags.HasFlag(NormalizationOptions.Trim))
             {

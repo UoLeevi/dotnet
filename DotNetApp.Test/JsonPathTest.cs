@@ -1,5 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using DotNetApp.Expressions;
 using Xunit;
 
@@ -86,30 +88,18 @@ namespace DotNetApp.Test
             Assert.True(value == dummy2.Other.Property);
         }
 
-        //    [Theory]
-        //    [InlineData("Property1[*].Property2", new[] { nameof(JsonPathAst.PropertySelector), nameof(JsonPathAst.ItemSelector), nameof(JsonPathAst.PropertySelector) })]
-        //    [InlineData("Property1.Property2", new[] { nameof(JsonPathAst.PropertySelector), nameof(JsonPathAst.PropertySelector) })]
-        //    public void CanParseRootNodeTypesCorrectly(string jsonpathExpression, object[] expectedNodeTypeNames)
-        //    {
-        //        JsonPath jsonPath = JsonPath.Parse(jsonpathExpression);
+        [Fact]
+        public void CanCreateExpression()
+        {
+            string jsonpathExpression = "$.Property1.Property1.Property2";
+            JsonPath jsonPath = JsonPath.Create<JsonPathTest>(jsonpathExpression);
+            Expression<Func<JsonPathTest, bool>> expression = jsonPath.Expression as Expression<Func<JsonPathTest, bool>>;
 
-        //        Assert.Equal(jsonPath.Root.Nodes
-        //            .Select(n => n.NodeType.Name).ToArray(),
-        //            expectedNodeTypeNames);
-        //    }
+            Assert.True(expression.Compile().Invoke(this));
+        }
 
-        //    [Fact]
-        //    public void CanCreateExpression()
-        //    {
-        //        string jsonpathExpression = "$.Property1.Property1.Property2";
-        //        JsonPath jsonPath = JsonPath.Parse(jsonpathExpression);
-        //        Expression<Func<JsonPathTest, bool>> expression = jsonPath.ToExpression(typeof(JsonPathTest)) as Expression<Func<JsonPathTest, bool>>;
-
-        //        Assert.True(expression.Compile().Invoke(this));
-        //    }
-
-        //    // Dummy property for tests
-        //    public JsonPathTest Property1 => this;
-        //    public bool Property2 => true;
+        // Dummy property for tests
+        public JsonPathTest Property1 => this;
+        public bool Property2 => true;
     }
 }

@@ -24,7 +24,7 @@ namespace DotNetApp.Expressions
         {
             ReadOnlySpan<char> expr;
 
-            while(!exprMem.IsEmpty)
+            while (!exprMem.IsEmpty)
             {
                 expr = exprMem.Span;
                 JsonPathNode node = Parse(ref expr);
