@@ -11,6 +11,11 @@ namespace DotNetApp.Test
         [Theory]
         [InlineData("te  st", "te st")]
         [InlineData("\tt\t\test2", "t est2")]
+        [InlineData("", "")]
+        [InlineData("\t\t", "")]
+        [InlineData("\t\ta", "a")]
+        [InlineData("a\t\t", "a")]
+        [InlineData("\ta\t", "a")]
         public void CanNormalizeText(string a, string expected)
         {
             Assert.Equal(Utilities.Text.Normalize(a), expected);

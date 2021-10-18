@@ -11,9 +11,10 @@ namespace DotNetApp.Utilities
         public enum NormalizationOptions
         {
             Exact = 0,
-            Lower = 1,
-            Trim = 2,
-            Default = Lower | Trim
+            Trim = 1,
+            Lower = 2,
+            Upper = 3,
+            Default = Trim | Lower
         }
 
         public static string Normalize(string a, NormalizationOptions flags = NormalizationOptions.Default)
@@ -28,23 +29,31 @@ namespace DotNetApp.Utilities
                 var span = a.AsSpan();
 
                 // Remove leading white space
-                for (int i = 0; i < span.Length; ++i)
+
+                int start = 0;
+
+                while (start < span.Length && char.IsWhiteSpace(span[start]))
                 {
-                    if (!char.IsWhiteSpace(span[i]))
-                    {
-                        span = span.Slice(i);
-                        break;
-                    }
+                    ++start;
+                }
+
+                if (start != 0)
+                {
+                    span = span.Slice(start);
                 }
 
                 // Remove trailing white space
-                for (int i = span.Length; i <= 0; --i)
+
+                int end = span.Length - 1;
+
+                while (end >= 0 && char.IsWhiteSpace(span[end]))
                 {
-                    if (!char.IsWhiteSpace(span[i]))
-                    {
-                        span = span.Slice(0, i + 1);
-                        break;
-                    }
+                    --end;
+                }
+
+                if (end != span.Length - 1)
+                {
+                    span = span.Slice(0, end + 1);
                 }
 
                 var sb = new StringBuilder(span.Length);
@@ -75,7 +84,12 @@ namespace DotNetApp.Utilities
 
             if (flags.HasFlag(NormalizationOptions.Lower))
             {
-                a = a.ToLower();
+                a = a.ToLowerInvariant();
+            }
+
+            if (flags.HasFlag(NormalizationOptions.Upper))
+            {
+                a = a.ToUpperInvariant();
             }
 
             return a;
