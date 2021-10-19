@@ -53,6 +53,9 @@ namespace DotNetApp.Test
             Assert.True(notificationCount == 1);
             
             dummy.Other = otherDummy;
+            Assert.True(notificationCount == 1);
+            
+            otherDummy.Property = "this should notify";
             Assert.True(notificationCount == 2);
 
             dummy.Property = "should have no effect";
@@ -118,7 +121,8 @@ namespace DotNetApp.Test
             item1.Property = "should notify";
             Assert.True(notificationCount == 7);
 
-            item2.Property = "should notify";
+            item2.Property = "should notify once only";
+            item2.Property = "should notify once only";
             Assert.True(notificationCount == 8);
 
             collection.Remove(item3);

@@ -18,9 +18,10 @@ namespace DotNetApp.Test
         [InlineData("\ta\t", "a")]
         public void CanNormalizeText(string a, string expected)
         {
-            Assert.Equal(Utilities.Text.Normalize(a), expected);
+            var normalized = Utilities.Text.Normalize(a);
+            Assert.Equal(normalized, expected);
         }
-        
+
         [Theory]
         [InlineData("test", "test", 0)]
         [InlineData("test2", "test", 1)]

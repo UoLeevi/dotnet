@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using DotNetApp.Expressions;
@@ -26,6 +27,8 @@ namespace DotNetApp.Extensions
     {
         private static ConditionalWeakTable<INotifyPropertyChanged, object> instanceTable;
         private static ImmutableDictionary<Type, ImmutableDictionary<string, JsonPath[]>> dependencyDefinitions;
+        private static ImmutableDictionary<(Type type, string propertyName), Func<object, object>> getters;
+
 
         private static void ConditionallyRegisterDependentInstance(INotifyPropertyChanged target)
         {
@@ -59,6 +62,7 @@ namespace DotNetApp.Extensions
             instanceTable = new ConditionalWeakTable<INotifyPropertyChanged, object>();
 
             var propertyDependencyMap = new Dictionary<Type, ImmutableDictionary<string, JsonPath[]>>();
+            var getterMap = new Dictionary<(Type type, string properyName), Func<object, object>>();
 
             var assemblyName = typeof(NotifyPropertyChangedExtensions).Assembly.GetName();
 
@@ -84,6 +88,18 @@ namespace DotNetApp.Extensions
                     List<JsonPath> dependencies = new List<JsonPath>();
                     newDependencyMap.Add(property.Name, dependencies);
 
+                    var getterKey = (type, property.Name);
+
+                    if (!getterMap.ContainsKey(getterKey))
+                    {
+                        var parameter = Expression.Parameter(typeof(object));
+                        var castedParameter = Expression.Convert(parameter, type);
+                        var memberAccess = Expression.MakeMemberAccess(castedParameter, property);
+                        var castedResult = Expression.Convert(memberAccess, typeof(object));
+                        var lambda = Expression.Lambda<Func<object, object>>(castedResult, parameter);
+                        getterMap.Add(getterKey, lambda.Compile());
+                    }
+
                     foreach (DependsOnAttribute dependsOnAttribute in dependsOnAttributes)
                     {
                         foreach (string jsonpath in dependsOnAttribute.PropertyDependencies)
@@ -99,11 +115,32 @@ namespace DotNetApp.Extensions
             }
 
             dependencyDefinitions = propertyDependencyMap.ToImmutableDictionary();
+            getters = getterMap.ToImmutableDictionary();
         }
 
         public static void InitializeChangeNotifications(this INotifyPropertyChanged source)
         {
             ConditionallyRegisterDependentInstance(source);
+        }
+
+        public static void SetProperty(this INotifyPropertyChanged source, object value, [CallerMemberName] string propertyName = default)
+        {
+            ConditionallyRegisterDependentInstance(source);
+
+            var fields = GetBackingFields<object>(source);
+
+            var current = fields.GetOrAdd(propertyName, default(object));
+
+
+            if (Equals(value, current)) return;
+
+            if (source is INotifyPropertyChanging notifyChangingSource)
+            {
+                notifyChangingSource.RaisePropertyChanging(propertyName);
+            }
+
+            fields[propertyName] = value;
+            source.RaisePropertyChanged(current, value, propertyName);
         }
 
         public static void SetProperty<TValue>(this INotifyPropertyChanged source, TValue value, [CallerMemberName] string propertyName = default)
@@ -141,7 +178,7 @@ namespace DotNetApp.Extensions
 
         private static Action ForwardPropertyChanged(this INotifyPropertyChanged source, ImmutableQueue<JsonPathNode> dependencyNodes, INotifyPropertyChanged target, string targetPropertyName)
         {
-            WeakReference wr = new WeakReference(target);
+            WeakReference<INotifyPropertyChanged> wr = new WeakReference<INotifyPropertyChanged>(target);
             Action unsubscribe = null;
             dependencyNodes = dependencyNodes.Dequeue(out var node);
 
@@ -165,11 +202,11 @@ namespace DotNetApp.Extensions
                     {
                         unsubscribe -= unsubscribeNested;
                         unsubscribeNested?.Invoke();
-                        if (!wr.IsAlive) return;
+                        if (!wr.TryGetTarget(out var t)) return;
 
                         if (propertySelectorNode.GetValue(source) is INotifyPropertyChanged nestedSrc)
                         {
-                            unsubscribeNested = nestedSrc.ForwardPropertyChanged(dependencyNodes, (INotifyPropertyChanged)wr.Target, targetPropertyName);
+                            unsubscribeNested = nestedSrc.ForwardPropertyChanged(dependencyNodes, t, targetPropertyName);
                             unsubscribe += unsubscribeNested;
                         }
                     });
@@ -192,21 +229,22 @@ namespace DotNetApp.Extensions
 
         public static Action ForwardPropertyChanging(this INotifyPropertyChanging source, string sourcePropertyName, INotifyPropertyChanging target, string targetPropertyName, bool unsubscribeAfterEvent = false)
         {
-            WeakReference wr = new WeakReference(target);
+            WeakReference<INotifyPropertyChanging> wr = new WeakReference<INotifyPropertyChanging>(target);
             return SubscribeToPropertyChanging(source, sourcePropertyName, _ =>
             {
-                if (!wr.IsAlive) return;
-                RaisePropertyChanging((INotifyPropertyChanging)wr.Target, targetPropertyName);
+                if (!wr.TryGetTarget(out var t)) return;
+                RaisePropertyChanging(t, targetPropertyName);
             }, unsubscribeAfterEvent);
         }
 
         public static Action ForwardPropertyChanged(this INotifyPropertyChanged source, string sourcePropertyName, INotifyPropertyChanged target, string targetPropertyName, bool unsubscribeAfterEvent = false)
         {
-            WeakReference wr = new WeakReference(target);
+            WeakReference<INotifyPropertyChanged> wr = new WeakReference<INotifyPropertyChanged>(target);
             return SubscribeToPropertyChanged(source, sourcePropertyName, _ =>
             {
-                if (!wr.IsAlive) return;
-                RaisePropertyChanged((INotifyPropertyChanged)wr.Target, targetPropertyName);
+                if (!wr.TryGetTarget(out var t)) return;
+                var current = getters[(t.GetType(), targetPropertyName)](t);
+                t.SetProperty(current, targetPropertyName);
             }, unsubscribeAfterEvent);
         }
 
@@ -260,8 +298,8 @@ namespace DotNetApp.Extensions
             where T : class, INotifyPropertyChanged
         {
             var subscriptions = new ConditionalWeakTable<T, Action>();
-            var wrTarget = new WeakReference(target);
-            var wrSource = new WeakReference(source);
+            var wrTarget = new WeakReference<INotifyPropertyChanged>(target);
+            var wrSource = new WeakReference<IEnumerable<T>>(source);
 
             foreach (var item in source.Distinct())
             {
@@ -275,18 +313,16 @@ namespace DotNetApp.Extensions
 
             return () =>
             {
-                if (!wrSource.IsAlive) return;
+                if (!wrSource.TryGetTarget(out var s)) return;
 
-                if (wrSource.Target is INotifyCollectionChanged eventSrc)
+                if (s is INotifyCollectionChanged eventSrc)
                 {
                     eventSrc.CollectionChanged -= SourceCollectionChanged;
                 }
 
                 if (subscriptions is null) return;
 
-                var items = (IEnumerable<T>)wrSource.Target;
-
-                foreach (var item in items.Distinct())
+                foreach (var item in s.Distinct())
                 {
                     if (subscriptions.TryGetValue(item, out Action unsubscribe))
                     {
@@ -310,16 +346,16 @@ namespace DotNetApp.Extensions
                     {
                         subscriptions.Remove(item);
                         unsubscribe();
-                        if (!wrTarget.IsAlive) return;
-                        RaisePropertyChanged((INotifyPropertyChanged)wrTarget.Target, targetPropertyName);
+                        if (!wrTarget.TryGetTarget(out var t)) return;
+                        RaisePropertyChanged(t, targetPropertyName);
                     }
                 }
 
                 foreach (var item in added)
                 {
-                    if (!wrTarget.IsAlive) return;
-                    RaisePropertyChanged((INotifyPropertyChanged)wrTarget.Target, targetPropertyName);
-                    subscriptions.Add(item, item.ForwardPropertyChanged(dependencyNodes, (INotifyPropertyChanged)wrTarget.Target, targetPropertyName));
+                    if (!wrTarget.TryGetTarget(out var t)) return;
+                    RaisePropertyChanged(t, targetPropertyName);
+                    subscriptions.Add(item, item.ForwardPropertyChanged(dependencyNodes, t, targetPropertyName));
                 }
             };
         }
@@ -332,11 +368,11 @@ namespace DotNetApp.Extensions
         public static Action ForwardItemPropertyChanged<T>(this IEnumerable<T> source, Func<T, bool> filterPredicate, string sourcePropertyName, INotifyPropertyChanged target, string targetPropertyName)
             where T : class, INotifyPropertyChanged
         {
-            var wr = new WeakReference(target);
+            var wr = new WeakReference<INotifyPropertyChanged>(target);
             return SubscribeToItemPropertyChanged(source, filterPredicate, sourcePropertyName, _ =>
             {
-                if (!wr.IsAlive) return;
-                RaisePropertyChanged((INotifyPropertyChanged)wr.Target, targetPropertyName);
+                if (!wr.TryGetTarget(out var t)) return;
+                RaisePropertyChanged(t, targetPropertyName);
             });
         }
 
@@ -362,21 +398,19 @@ namespace DotNetApp.Extensions
                 eventSource.CollectionChanged += SourceCollectionChanged;
             }
 
-            var wr = new WeakReference(source);
+            var wr = new WeakReference<IEnumerable<T>>(source);
             return () =>
             {
-                if (!wr.IsAlive) return;
+                if (!wr.TryGetTarget(out var s)) return;
 
-                if (wr.Target is INotifyCollectionChanged eventSrc)
+                if (s is INotifyCollectionChanged eventSrc)
                 {
                     eventSrc.CollectionChanged -= SourceCollectionChanged;
                 }
 
                 if (subscriptions is null) return;
 
-                var items = (IEnumerable<T>)wr.Target;
-
-                foreach (var item in items.Distinct())
+                foreach (var item in s.Distinct())
                 {
                     if (subscriptions.TryGetValue(item, out Action unsubscribe))
                     {

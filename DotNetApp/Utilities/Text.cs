@@ -13,7 +13,7 @@ namespace DotNetApp.Utilities
             Exact = 0,
             Trim = 1,
             Lower = 2,
-            Upper = 3,
+            Upper = 4,
             Default = Trim | Lower
         }
 
