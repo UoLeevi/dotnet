@@ -155,32 +155,33 @@ namespace DotNetApp.Test
             Assert.True(notificationCount == 4);
 
             collection.Add(item2);
+            Assert.True(notificationCount == 4);
+
+            item3.Property = "should notify";
+            collection.Add(item3);
             Assert.True(notificationCount == 5);
 
-            collection.Add(item3);
+            item1.Property = "should notify again";
             Assert.True(notificationCount == 6);
 
-            item1.Property = "should notify";
+            item2.Property = "should notify once only";
+            item2.Property = "should notify once only";
             Assert.True(notificationCount == 7);
 
-            item2.Property = "should notify once only";
-            item2.Property = "should notify once only";
-            Assert.True(notificationCount == 8);
-
             collection.Remove(item3);
-            Assert.True(notificationCount == 9);
+            Assert.True(notificationCount == 7);
 
             item3.Property = "no effect";
-            Assert.True(notificationCount == 9);
+            Assert.True(notificationCount == 7);
 
             dummy.Collection = null;
-            Assert.True(notificationCount == 10);
+            Assert.True(notificationCount == 8);
 
             item1.Property = "no effect";
-            Assert.True(notificationCount == 10);
+            Assert.True(notificationCount == 8);
 
             collection.Add(item3);
-            Assert.True(notificationCount == 10);
+            Assert.True(notificationCount == 8);
         }
     }
 }

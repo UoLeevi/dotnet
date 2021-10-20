@@ -7,48 +7,14 @@ namespace DotNetApp.Extensions
 {
     public static class BindingExtensions
     {
-        
-
-        //public static Action Bind<TSource>(
-        //    this TSource source,
-        //    string propertyName,
-        //    Action<TSource, object, object> action,
-        //    SynchronizationContext context = null)
-        //    where TSource : class, INotifyPropertyChanged
-        //{
-        //    var parameter = Expression.Parameter(source.GetType());
-        //    var property = Expression.Property(parameter, propertyName);
-        //    var cast = Expression.Convert(property, typeof(object));
-        //    var castedPropertyAccess = Expression.Lambda<Func<TSource, object>>(cast, parameter);
-        //}
-
         public static Action Bind<TSource, TProperty>(
             this TSource source,
-            Expression<Func<TSource, TProperty>> property,
-            Action<TProperty> action,
-            SynchronizationContext context = null)
-            where TSource : class, INotifyPropertyChanged 
-            => Bind(source, property, (s, oldValue, newValue) => action(newValue), context);
-        
-        public static Action Bind<TSource, TProperty>(
-            this TSource source,
-            Expression<Func<TSource, TProperty>> property,
-            Action<TSource, TProperty> action,
-            SynchronizationContext context = null)
-            where TSource : class, INotifyPropertyChanged 
-            => Bind(source, property, (s, oldValue, newValue) => action(s, newValue), context);
-
-        public static Action Bind<TSource, TProperty>(
-            this TSource source,
-            Expression<Func<TSource, TProperty>> property,
+            string propertyName,
             Action<TSource, TProperty, TProperty> action,
             SynchronizationContext context = null)
             where TSource : class, INotifyPropertyChanged
         {
-            MemberExpression propertyAccess = (MemberExpression)property.Body;
-            string propertyName = propertyAccess.Member.Name;
-            Func<TSource, TProperty> getValue = property.Compile();
-            TProperty previousValue = getValue(source);
+            TProperty previousValue = Dynamic.GetPropertyOrFieldValue<TSource, TProperty>(source, propertyName);
 
             SendOrPostCallback callback;
             Action<TSource, TProperty, TProperty> execute = action;
@@ -104,10 +70,50 @@ namespace DotNetApp.Extensions
 
                 previousValue = eventArgs is PropertyChangedExtendedEventArgs<TProperty> extendedEventArgs
                     ? extendedEventArgs.NewValue
-                    : getValue(s);
+                    : Dynamic.GetPropertyOrFieldValue<TSource, TProperty>(s, propertyName);
 
                 execute(s, oldValue, previousValue);
             }
         }
+
+        public static Action Bind<TSource, TProperty>(
+            this TSource source,
+            string propertyName,
+            Action<TProperty> action,
+            SynchronizationContext context = null)
+            where TSource : class, INotifyPropertyChanged
+            => Bind(source, propertyName, (TSource s, TProperty oldValue, TProperty newValue) => action(newValue), context);
+
+        public static Action Bind<TSource, TProperty>(
+            this TSource source,
+            string propertyName,
+            Action<TSource, TProperty> action,
+            SynchronizationContext context = null)
+            where TSource : class, INotifyPropertyChanged
+            => Bind(source, propertyName, (TSource s, TProperty oldValue, TProperty newValue) => action(s, newValue), context);
+
+        public static Action Bind<TSource, TProperty>(
+            this TSource source,
+            Expression<Func<TSource, TProperty>> property,
+            Action<TProperty> action,
+            SynchronizationContext context = null)
+            where TSource : class, INotifyPropertyChanged
+            => Bind(source, property, (s, oldValue, newValue) => action(newValue), context);
+
+        public static Action Bind<TSource, TProperty>(
+            this TSource source,
+            Expression<Func<TSource, TProperty>> property,
+            Action<TSource, TProperty> action,
+            SynchronizationContext context = null)
+            where TSource : class, INotifyPropertyChanged
+            => Bind(source, property, (s, oldValue, newValue) => action(s, newValue), context);
+
+        public static Action Bind<TSource, TProperty>(
+            this TSource source,
+            Expression<Func<TSource, TProperty>> property,
+            Action<TSource, TProperty, TProperty> action,
+            SynchronizationContext context = null)
+            where TSource : class, INotifyPropertyChanged
+            => Bind(source, ((MemberExpression)property.Body).Member.Name, action, context);
     }
 }

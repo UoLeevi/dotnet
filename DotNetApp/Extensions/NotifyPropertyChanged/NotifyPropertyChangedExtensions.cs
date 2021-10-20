@@ -27,7 +27,6 @@ namespace DotNetApp.Extensions
     {
         private static ConditionalWeakTable<INotifyPropertyChanged, object> instanceTable;
         private static ImmutableDictionary<Type, ImmutableDictionary<string, JsonPath[]>> dependencyDefinitions;
-        private static ImmutableDictionary<(Type type, string propertyName), Func<object, object>> getters;
 
 
         private static void ConditionallyRegisterDependentInstance(INotifyPropertyChanged target)
@@ -62,7 +61,6 @@ namespace DotNetApp.Extensions
             instanceTable = new ConditionalWeakTable<INotifyPropertyChanged, object>();
 
             var propertyDependencyMap = new Dictionary<Type, ImmutableDictionary<string, JsonPath[]>>();
-            var getterMap = new Dictionary<(Type type, string properyName), Func<object, object>>();
 
             var assemblyName = typeof(NotifyPropertyChangedExtensions).Assembly.GetName();
 
@@ -88,18 +86,6 @@ namespace DotNetApp.Extensions
                     List<JsonPath> dependencies = new List<JsonPath>();
                     newDependencyMap.Add(property.Name, dependencies);
 
-                    var getterKey = (type, property.Name);
-
-                    if (!getterMap.ContainsKey(getterKey))
-                    {
-                        var parameter = Expression.Parameter(typeof(object));
-                        var castedParameter = Expression.Convert(parameter, type);
-                        var memberAccess = Expression.MakeMemberAccess(castedParameter, property);
-                        var castedResult = Expression.Convert(memberAccess, typeof(object));
-                        var lambda = Expression.Lambda<Func<object, object>>(castedResult, parameter);
-                        getterMap.Add(getterKey, lambda.Compile());
-                    }
-
                     foreach (DependsOnAttribute dependsOnAttribute in dependsOnAttributes)
                     {
                         foreach (string jsonpath in dependsOnAttribute.PropertyDependencies)
@@ -115,7 +101,6 @@ namespace DotNetApp.Extensions
             }
 
             dependencyDefinitions = propertyDependencyMap.ToImmutableDictionary();
-            getters = getterMap.ToImmutableDictionary();
         }
 
         public static void InitializeChangeNotifications(this INotifyPropertyChanged source)
@@ -123,31 +108,28 @@ namespace DotNetApp.Extensions
             ConditionallyRegisterDependentInstance(source);
         }
 
-        public static void SetProperty(this INotifyPropertyChanged source, object value, [CallerMemberName] string propertyName = default)
+        private static void NotifyComputedPropertyIfChanged(this INotifyPropertyChanged source, string propertyName = default)
         {
             ConditionallyRegisterDependentInstance(source);
 
-            var fields = GetBackingFields<object>(source);
+            var value = Dynamic.GetPropertyOrFieldValue<INotifyPropertyChanged, object>(source, propertyName);
+            var fields = Store.GetBackingFields(source);
 
-            var current = fields.GetOrAdd(propertyName, default(object));
-
-
-            if (Equals(value, current)) return;
-
-            if (source is INotifyPropertyChanging notifyChangingSource)
+            if (fields.TryGetValue(propertyName, out var current) && Equals(value, current))
             {
-                notifyChangingSource.RaisePropertyChanging(propertyName);
+                return;
             }
 
             fields[propertyName] = value;
-            source.RaisePropertyChanged(current, value, propertyName);
+            source.RaisePropertyChanged(propertyName);
         }
+
 
         public static void SetProperty<TValue>(this INotifyPropertyChanged source, TValue value, [CallerMemberName] string propertyName = default)
         {
             ConditionallyRegisterDependentInstance(source);
 
-            var fields = GetBackingFields<TValue>(source);
+            var fields = Store<TValue>.GetBackingFields(source);
             var current = fields.GetOrAdd(propertyName, default(TValue));
 
             if (EqualityComparer<TValue>.Default.Equals(value, current)) return;
@@ -166,7 +148,7 @@ namespace DotNetApp.Extensions
         {
             ConditionallyRegisterDependentInstance(source);
 
-            var fields = GetBackingFields<TValue>(source);
+            var fields = Store<TValue>.GetBackingFields(source);
             return fields.GetOrAdd(propertyName, default(TValue));
         }
 
@@ -198,13 +180,13 @@ namespace DotNetApp.Extensions
                         unsubscribe += unsubscribeNested;
                     }
 
-                    unsubscribe += source.SubscribeToPropertyChanged(sourcePropertyName, sender =>
+                    unsubscribe += source.Bind<INotifyPropertyChanged, object>(sourcePropertyName, (value) =>
                     {
                         unsubscribe -= unsubscribeNested;
                         unsubscribeNested?.Invoke();
                         if (!wr.TryGetTarget(out var t)) return;
 
-                        if (propertySelectorNode.GetValue(source) is INotifyPropertyChanged nestedSrc)
+                        if (value is INotifyPropertyChanged nestedSrc)
                         {
                             unsubscribeNested = nestedSrc.ForwardPropertyChanged(dependencyNodes, t, targetPropertyName);
                             unsubscribe += unsubscribeNested;
@@ -237,16 +219,16 @@ namespace DotNetApp.Extensions
             }, unsubscribeAfterEvent);
         }
 
-        public static Action ForwardPropertyChanged(this INotifyPropertyChanged source, string sourcePropertyName, INotifyPropertyChanged target, string targetPropertyName, bool unsubscribeAfterEvent = false)
+        public static Action ForwardPropertyChanged(this INotifyPropertyChanged source, string sourcePropertyName, INotifyPropertyChanged target, string targetPropertyName)
         {
             WeakReference<INotifyPropertyChanged> wr = new WeakReference<INotifyPropertyChanged>(target);
-            return SubscribeToPropertyChanged(source, sourcePropertyName, _ =>
+            return source.Bind<INotifyPropertyChanged, object>(sourcePropertyName, _ =>
             {
                 if (!wr.TryGetTarget(out var t)) return;
-                var current = getters[(t.GetType(), targetPropertyName)](t);
-                t.SetProperty(current, targetPropertyName);
-            }, unsubscribeAfterEvent);
+                t.NotifyComputedPropertyIfChanged(targetPropertyName);
+            });
         }
+
 
         public static Action SubscribeToPropertyChanging<T>(this T source, string propertyName, Action<T> action, bool unsubscribeAfterEvent = false)
             where T : INotifyPropertyChanging
@@ -265,29 +247,6 @@ namespace DotNetApp.Extensions
                 if (unsubscribeAfterEvent)
                 {
                     src.PropertyChanging -= SourcePropertyChanging;
-                }
-
-                action(src);
-            }
-        }
-
-        public static Action SubscribeToPropertyChanged<T>(this T source, string propertyName, Action<T> action, bool unsubscribeAfterEvent = false)
-            where T : INotifyPropertyChanged
-        {
-            ConditionallyRegisterDependentInstance(source);
-
-            source.PropertyChanged += SourcePropertyChanged;
-            return () => source.PropertyChanged -= SourcePropertyChanged;
-
-            void SourcePropertyChanged(object sender, PropertyChangedEventArgs e)
-            {
-                if (e.PropertyName != propertyName) return;
-
-                T src = (T)sender;
-
-                if (unsubscribeAfterEvent)
-                {
-                    src.PropertyChanged -= SourcePropertyChanged;
                 }
 
                 action(src);
@@ -346,17 +305,17 @@ namespace DotNetApp.Extensions
                     {
                         subscriptions.Remove(item);
                         unsubscribe();
-                        if (!wrTarget.TryGetTarget(out var t)) return;
-                        RaisePropertyChanged(t, targetPropertyName);
                     }
                 }
+                
+                if (!wrTarget.TryGetTarget(out var t)) return;
+
+                t.NotifyComputedPropertyIfChanged(targetPropertyName);
 
                 foreach (var item in added)
                 {
-                    if (!wrTarget.TryGetTarget(out var t)) return;
-                    RaisePropertyChanged(t, targetPropertyName);
                     subscriptions.Add(item, item.ForwardPropertyChanged(dependencyNodes, t, targetPropertyName));
-                }
+                }                
             };
         }
 
@@ -369,14 +328,12 @@ namespace DotNetApp.Extensions
             where T : class, INotifyPropertyChanged
         {
             var wr = new WeakReference<INotifyPropertyChanged>(target);
-            return SubscribeToItemPropertyChanged(source, filterPredicate, sourcePropertyName, _ =>
+            return SubscribeToItemPropertyChanged(source, filterPredicate, sourcePropertyName, (_) =>
             {
                 if (!wr.TryGetTarget(out var t)) return;
-                RaisePropertyChanged(t, targetPropertyName);
+                t.NotifyComputedPropertyIfChanged(targetPropertyName);
             });
         }
-
-
 
         public static Action SubscribeToItemPropertyChanged<T>(this IEnumerable<T> source, string propertyName, Action<T> action)
             where T : class, INotifyPropertyChanged
@@ -390,7 +347,7 @@ namespace DotNetApp.Extensions
             foreach (var item in source.Distinct())
             {
                 if (filterPredicate?.Invoke(item) is false) continue;
-                subscriptions.Add(item, item.SubscribeToPropertyChanged(propertyName, action));
+                subscriptions.Add(item, item.Bind<T, object>(propertyName, (s, v) => action(s)));
             }
 
             if (source is INotifyCollectionChanged eventSource)
@@ -442,7 +399,7 @@ namespace DotNetApp.Extensions
                 {
                     if (filterPredicate?.Invoke(item) is false) continue;
                     action(item);
-                    subscriptions.Add(item, item.SubscribeToPropertyChanged(propertyName, action));
+                    subscriptions.Add(item, item.Bind<T, object>(propertyName, (i, v) => action(i)));
                 }
             };
         }

@@ -7,25 +7,34 @@ namespace DotNetApp.Extensions
 {
     public static partial class NotifyPropertyChangedExtensions
     {
-        private static class Store<TValue>
+        internal static class Store
         {
-            internal static ConditionalWeakTable<INotifyPropertyChanged, ConcurrentDictionary<string, TValue>> BackingFields { get; }
+            private static readonly ConditionalWeakTable<object, ConcurrentDictionary<string, object>> BackingFields = new ConditionalWeakTable<object, ConcurrentDictionary<string, object>>();
 
-            static Store()
+            private static ConcurrentDictionary<string, object> CreateBackingFields(object source)
             {
-                BackingFields = new ConditionalWeakTable<INotifyPropertyChanged, ConcurrentDictionary<string, TValue>>();
+                return new ConcurrentDictionary<string, object>();
+            }
+
+            internal static ConcurrentDictionary<string, object> GetBackingFields(object source)
+            {
+                return BackingFields.GetValue(source, CreateBackingFields);
             }
         }
 
-        private static ConcurrentDictionary<string, TValue> GetBackingFields<TValue>(INotifyPropertyChanged source)
+        internal static class Store<T>
         {
-            if (!Store<TValue>.BackingFields.TryGetValue(source, out ConcurrentDictionary<string, TValue> fields))
+            private static readonly ConditionalWeakTable<object, ConcurrentDictionary<string, T>> BackingFields = new ConditionalWeakTable<object, ConcurrentDictionary<string, T>>();
+
+            private static ConcurrentDictionary<string, T> CreateBackingFields(object source)
             {
-                fields = new ConcurrentDictionary<string, TValue>();
-                Store<TValue>.BackingFields.Add(source, fields);
+                return new ConcurrentDictionary<string, T>();
             }
 
-            return fields;
+            internal static ConcurrentDictionary<string, T> GetBackingFields(object source)
+            {
+                return BackingFields.GetValue(source, CreateBackingFields);
+            }
         }
     }
 }
