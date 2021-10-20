@@ -93,9 +93,9 @@ namespace DotNetApp.Test
         {
             string jsonpathExpression = "$.Property1.Property1.Property2";
             JsonPath jsonPath = JsonPath.Create<JsonPathTest>(jsonpathExpression);
-            Expression<Func<JsonPathTest, bool>> expression = jsonPath.Expression as Expression<Func<JsonPathTest, bool>>;
+            var expression = jsonPath.Expression;
 
-            Assert.True(expression.Compile().Invoke(this));
+            Assert.True((bool)expression.Compile().Invoke(this));
         }
 
         // Dummy property for tests

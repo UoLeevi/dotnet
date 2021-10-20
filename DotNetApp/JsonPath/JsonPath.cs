@@ -46,10 +46,10 @@ namespace DotNetApp.Expressions
             where T : class
         {
             JsonPath jsonPath = Create(obj.GetType(), jsonpath);
-            return jsonPath.Delegate.DynamicInvoke(obj);
+            return jsonPath.GetValue(obj);
         }
 
-        private Delegate function;
+        private Func<object, object> getValueFunc;
 
         public JsonPath(Type type, string jsonpath)
         {
@@ -70,26 +70,29 @@ namespace DotNetApp.Expressions
             Expression = ToExpression(type);
         }
 
-        private LambdaExpression ToExpression(Type type)
+        private Expression<Func<object, object>> ToExpression(Type type)
         {
-            ParameterExpression parameter = LinqExpression.Parameter(type, "arg");
-            LinqExpression body = Root.ToExpression(parameter);
+            var parameter = LinqExpression.Parameter(typeof(object));
+            var castedParameter = LinqExpression.Convert(parameter, type);
+            var jsonpathExpr = Root.ToExpression(castedParameter);
+            var castedResult = LinqExpression.Convert(jsonpathExpr, typeof(object));
+            var lambda = LinqExpression.Lambda<Func<object, object>>(castedResult, parameter);
 
-            return LinqExpression.Lambda(body, parameter);
+            return lambda;
         }
 
-        public LambdaExpression Expression { get; }
+        public Expression<Func<object, object>> Expression { get; }
 
-        public Delegate Delegate
+        public Func<object, object> GetValue
         {
             get
             {
-                if (function is null)
+                if (getValueFunc is null)
                 {
-                    function = Expression.Compile();
+                    getValueFunc = Expression.Compile();
                 }
 
-                return function;
+                return getValueFunc;
             }
         }
 

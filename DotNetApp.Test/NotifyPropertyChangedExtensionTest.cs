@@ -34,6 +34,9 @@ namespace DotNetApp.Test
         [DependsOn("Other.Property")]
         public string ComputedProperty => Other?.Property;
 
+        [DependsOn("ComputedProperty")]
+        public int ComputedPropertyLength => ComputedProperty?.Length ?? 0;
+
         [DependsOn("Collection[*].Property")]
         public string LongestProperty => Collection?.Select(d => d.Property).OrderByDescending(p => p?.Length).FirstOrDefault();
     }
@@ -51,10 +54,49 @@ namespace DotNetApp.Test
 
             dummy.Bind(d => d.ComputedProperty, _ => ++notificationCount);
             Assert.True(notificationCount == 1);
-            
+
             dummy.Other = otherDummy;
             Assert.True(notificationCount == 1);
-            
+
+            otherDummy.Property = "this should notify";
+            Assert.True(notificationCount == 2);
+
+            dummy.Property = "should have no effect";
+            Assert.True(notificationCount == 2);
+
+            otherDummy.Property = "should notify";
+            Assert.True(notificationCount == 3);
+
+            otherDummy.Other = dummy;
+            Assert.True(notificationCount == 3);
+
+            otherDummy.Other = otherDummy;
+            Assert.True(notificationCount == 3);
+
+            dummy.Other = null;
+            Assert.True(notificationCount == 4);
+
+            otherDummy.Property = "should not notify anymore";
+            Assert.True(notificationCount == 4);
+
+            dummy.Other = null;
+            Assert.True(notificationCount == 4);
+        }
+
+        [Fact]
+        public void DoesForwardPropertyChangedEventsToChainedDependentPropertiesWithValueType()
+        {
+            var dummy = new Dummy();
+            var otherDummy = new Dummy();
+
+            int notificationCount = 0;
+
+            dummy.Bind(d => d.ComputedPropertyLength, _ => ++notificationCount);
+            Assert.True(notificationCount == 1);
+
+            dummy.Other = otherDummy;
+            Assert.True(notificationCount == 1);
+
             otherDummy.Property = "this should notify";
             Assert.True(notificationCount == 2);
 
