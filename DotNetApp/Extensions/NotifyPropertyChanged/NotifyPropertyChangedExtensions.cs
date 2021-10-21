@@ -11,6 +11,18 @@ using DotNetApp.Expressions;
 
 namespace DotNetApp.Extensions
 {
+    public class PropertyChangingExtendedEventArgs<T> : PropertyChangingEventArgs
+    {
+        public T OldValue { get; }
+        public T NewValue { get; }
+
+        public PropertyChangingExtendedEventArgs(string propertyName, T oldValue, T newValue) : base(propertyName)
+        {
+            OldValue = oldValue;
+            NewValue = newValue;
+        }
+    }
+
     public class PropertyChangedExtendedEventArgs<T> : PropertyChangedEventArgs
     {
         public T OldValue { get; }
@@ -307,7 +319,7 @@ namespace DotNetApp.Extensions
                         unsubscribe();
                     }
                 }
-                
+
                 if (!wrTarget.TryGetTarget(out var t)) return;
 
                 t.NotifyComputedPropertyIfChanged(targetPropertyName);
@@ -315,7 +327,7 @@ namespace DotNetApp.Extensions
                 foreach (var item in added)
                 {
                     subscriptions.Add(item, item.ForwardPropertyChanged(dependencyNodes, t, targetPropertyName));
-                }                
+                }
             };
         }
 

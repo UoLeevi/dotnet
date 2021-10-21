@@ -41,6 +41,10 @@
     <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\DotNetApp\DotNetApp.csproj" />
+  </ItemGroup>
+
   <PropertyGroup>
     <IncludeBuildOutput>false</IncludeBuildOutput>
   </PropertyGroup>

@@ -114,10 +114,11 @@ namespace {namespaceName}
 
             set
             {{
-                if (this.{fieldName} == value) return;
-                this.PropertyChanging?.Invoke(this, new System.ComponentModel.PropertyChangingEventArgs(nameof({propertyName})));
+                var oldValue = this.{fieldName};
+                if (oldValue == value) return;
+                this.PropertyChanging?.Invoke(this, new DotNetApp.Extensions.PropertyChangingExtendedEventArgs<{fieldType}>(nameof({propertyName}), oldValue, value));
                 this.{fieldName} = value;
-                this.PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof({propertyName})));
+                this.PropertyChanged?.Invoke(this, new DotNetApp.Extensions.PropertyChangedExtendedEventArgs<{fieldType}>(nameof({propertyName}), oldValue, value));
             }}
         }}
 
