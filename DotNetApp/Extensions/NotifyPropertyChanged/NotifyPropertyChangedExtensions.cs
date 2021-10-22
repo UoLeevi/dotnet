@@ -4,7 +4,6 @@ using System.Collections.Immutable;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using DotNetApp.Expressions;
@@ -39,7 +38,6 @@ namespace DotNetApp.Extensions
     {
         private static ConditionalWeakTable<INotifyPropertyChanged, object> instanceTable;
         private static ImmutableDictionary<Type, ImmutableDictionary<string, JsonPath[]>> dependencyDefinitions;
-
 
         private static void ConditionallyRegisterDependentInstance(INotifyPropertyChanged target)
         {
@@ -127,13 +125,18 @@ namespace DotNetApp.Extensions
             var value = Dynamic.GetPropertyOrFieldValue<INotifyPropertyChanged, object>(source, propertyName);
             var fields = Store.GetBackingFields(source);
 
-            if (fields.TryGetValue(propertyName, out var current) && Equals(value, current))
+            if (fields.TryGetValue(propertyName, out var current))
             {
+                if (Equals(value, current)) return;
+                fields[propertyName] = value;
+                source.RaisePropertyChanged(current, value, propertyName);
                 return;
             }
-
-            fields[propertyName] = value;
-            source.RaisePropertyChanged(propertyName);
+            else
+            {
+                fields[propertyName] = value;
+                source.RaisePropertyChanged(propertyName);
+            }
         }
 
 

@@ -12,6 +12,7 @@ namespace DotNetApp.Test
         public Dummy()
         {
             Collection = new ObservableCollection<Dummy>();
+            this.InitializeChangeNotifications();
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -19,17 +20,11 @@ namespace DotNetApp.Test
         [GenerateProperty]
         private string property;
 
-        public Dummy Other
-        {
-            get => this.GetProperty<Dummy>();
-            set => this.SetProperty(value);
-        }
+        [GenerateProperty]
+        private Dummy other;
 
-        public IEnumerable<Dummy> Collection
-        {
-            get => this.GetProperty<IEnumerable<Dummy>>();
-            set => this.SetProperty(value);
-        }
+        [GenerateProperty]
+        private IEnumerable<Dummy> collection;
 
         [DependsOn("Other.Property")]
         public string ComputedProperty => Other?.Property;
