@@ -70,7 +70,7 @@ namespace {namespaceName}
                 {
                     source.Append($"        public event {typeof(System.ComponentModel.PropertyChangingEventHandler).FullName} PropertyChanging;");
                 }
-                
+
                 if (!classSymbol.Interfaces.Contains(notifyChangedSymbol))
                 {
                     source.Append($"        public event {typeof(System.ComponentModel.PropertyChangedEventHandler).FullName} PropertyChanged;");
@@ -95,24 +95,35 @@ namespace {namespaceName}
 
             // get the GenerateProperty attribute from the field, and any associated data
             AttributeData attributeData = fieldSymbol.GetAttributes().Single(ad => ad.AttributeClass.Equals(attributeSymbol, SymbolEqualityComparer.Default));
+
             TypedConstant overridenNameOpt = attributeData.NamedArguments.SingleOrDefault(kvp => kvp.Key == "PropertyName").Value;
 
             string propertyName = GeneratePropertyName(fieldName, overridenNameOpt);
+
             if (propertyName.Length == 0 || propertyName == fieldName)
             {
                 //TODO: issue a diagnostic that we can't process this field
                 return;
             }
 
+            TypedConstant overridenAccessOpt = attributeData.NamedArguments.SingleOrDefault(kvp => kvp.Key == "AccessModifier").Value;
+            string accessModifier = overridenAccessOpt.IsNull ? "public" : overridenAccessOpt.Value.ToString();
+            
+            TypedConstant overridenAccessGetOpt = attributeData.NamedArguments.SingleOrDefault(kvp => kvp.Key == "AccessModifierGet").Value;
+            string accessModifierGet = overridenAccessGetOpt.IsNull ? "" : $"{overridenAccessGetOpt.Value.ToString()} ";
+
+            TypedConstant overridenAccessSetOpt = attributeData.NamedArguments.SingleOrDefault(kvp => kvp.Key == "AccessModifierSet").Value;
+            string accessModifierSet = overridenAccessSetOpt.IsNull ? "" : $"{overridenAccessSetOpt.Value.ToString()} ";
+
             source.Append($@"
-        public {fieldType} {propertyName} 
+        {accessModifier} {fieldType} {propertyName} 
         {{
-            get 
+            {accessModifierGet}get 
             {{
                 return this.{fieldName};
             }}
 
-            set
+            {accessModifierSet}set
             {{
                 var oldValue = this.{fieldName};
                 if (oldValue == value) return;
@@ -125,7 +136,7 @@ namespace {namespaceName}
 ");
         }
 
-        string GeneratePropertyName(string fieldName, TypedConstant overridenNameOpt)
+        static string GeneratePropertyName(string fieldName, TypedConstant overridenNameOpt)
         {
             if (!overridenNameOpt.IsNull)
             {
@@ -133,6 +144,7 @@ namespace {namespaceName}
             }
 
             fieldName = fieldName.TrimStart('_');
+
             if (fieldName.Length == 0)
                 return string.Empty;
 

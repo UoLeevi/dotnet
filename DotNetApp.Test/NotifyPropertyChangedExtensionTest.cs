@@ -17,7 +17,7 @@ namespace DotNetApp.Test
 
         public event PropertyChangedEventHandler PropertyChanged;
 
-        [GenerateProperty]
+        [GenerateProperty(AccessModifierSet = "internal")]
         private string property;
 
         [GenerateProperty]
