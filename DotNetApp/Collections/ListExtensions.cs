@@ -41,12 +41,18 @@ namespace DotNetApp.Collections.Extensions
         {
             if (source.Count == 0)
             {
+                // Source list is empty.
+                // -> Clear target list.
+
                 target.Clear();
                 return;
             }
 
             if (target.Count == 0)
             {
+                // Target list is empty.
+                // -> All items from source list can be added to target list.
+
                 foreach (T item in source)
                 {
                     target.Add(item);
@@ -73,6 +79,9 @@ namespace DotNetApp.Collections.Extensions
 
                     if (i == target.Count)
                     {
+                        // Target list has no more items.
+                        // -> All remaining items from source list can be added to target list.
+
                         while (i < source.Count)
                         {
                             itemSource = source[i++];
@@ -93,6 +102,9 @@ namespace DotNetApp.Collections.Extensions
 
                     if (i == source.Count)
                     {
+                        // Source list has no more items.
+                        // -> All remaining items in the target list can removed.
+
                         while (i < target.Count)
                         {
                             target.RemoveAt(i);
@@ -112,6 +124,9 @@ namespace DotNetApp.Collections.Extensions
 
                     if (i == target.Count)
                     {
+                        // Target list has no more items.
+                        // -> All remaining items from source list can be added to target list.
+
                         while (i < source.Count)
                         {
                             itemSource = source[i++];
@@ -123,6 +138,9 @@ namespace DotNetApp.Collections.Extensions
 
                     if (i == source.Count)
                     {
+                        // Source list has no more items.
+                        // -> All remaining items in the target list can removed.
+
                         while (i < target.Count)
                         {
                             target.RemoveAt(i);
